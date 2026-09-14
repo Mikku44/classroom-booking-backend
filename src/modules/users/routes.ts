@@ -11,7 +11,11 @@ const r = Router();
 r.use(authenticate);
 const publicUser = {
   id: true,
+  userCode: true,
   name: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
   email: true,
   role: true,
   status: true,
@@ -35,6 +39,7 @@ r.get(
             ? {
                 OR: [
                   { name: { contains: query.search } },
+                  { userCode: { contains: query.search } },
                   { email: { contains: query.search } },
                 ],
               }
@@ -65,7 +70,13 @@ r.get("/me", async (req, res, next) => {
 r.patch("/me", async (req, res, next) => {
   try {
     const input = z
-      .object({ name: z.string().min(1).max(150), email: z.string().email() })
+      .object({
+        name: z.string().min(1).max(150),
+        firstName: z.string().trim().min(1).max(100).nullable(),
+        lastName: z.string().trim().min(1).max(100).nullable(),
+        phone: z.string().regex(/^0[0-9]{8,9}$/).nullable(),
+        email: z.string().email(),
+      })
       .partial()
       .parse(req.body);
     ok(

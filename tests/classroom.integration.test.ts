@@ -21,6 +21,16 @@ describe("Classroom availability and schedule API", () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
+  it("lists classrooms without authentication", async () => {
+    jest.spyOn(prisma.classroom, "findMany").mockResolvedValue([
+      { id: 1n, code: "A101", name: "Lecture", building: "A", floor: "1", capacity: 40, equipment: [], status: "AVAILABLE" },
+    ] as never);
+    jest.spyOn(prisma.classroom, "count").mockResolvedValue(1);
+    const response = await request(app).get("/api/classrooms?limit=20");
+    expect(response.status).toBe(200);
+    expect(response.body.data[0]).toEqual(expect.objectContaining({ code: "A101" }));
+  });
+
   it("checks multiple rooms in one request", async () => {
     jest.spyOn(prisma.classroom, "findMany").mockResolvedValue([
       {

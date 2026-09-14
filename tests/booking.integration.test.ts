@@ -139,6 +139,29 @@ describe("Booking API", () => {
       });
     expect(response.status).toBe(400);
   });
+  it("rejects bookings outside configured business hours", async () => {
+    const date = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Bangkok",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .formatToParts(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000))
+        .map((part) => [part.type, part.value]),
+    );
+    const day = `${date.year}-${date.month}-${date.day}`;
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send({
+        ...payload,
+        startAt: `${day}T07:00:00+07:00`,
+        endAt: `${day}T08:00:00+07:00`,
+      });
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain("08:00");
+  });
   it("returns 400 when requested equipment is unavailable", async () => {
     jest
       .spyOn(prisma.classroom, "findUnique")

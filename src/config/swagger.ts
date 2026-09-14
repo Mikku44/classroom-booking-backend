@@ -111,13 +111,17 @@ export const swaggerDocument = {
         type: "object",
         properties: {
           id: { type: "integer", format: "int64" },
+          userCode: { type: "string", nullable: true },
           name: { type: "string" },
+          firstName: { type: "string", nullable: true },
+          lastName: { type: "string", nullable: true },
+          phone: { type: "string", nullable: true },
           email: { type: "string", format: "email" },
           role: {
             type: "string",
             enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
           },
-          status: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
+          status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"] },
           createdAt: { type: "string", format: "date-time" },
         },
       },
@@ -125,13 +129,16 @@ export const swaggerDocument = {
         type: "object",
         properties: {
           id: { type: "integer", format: "int64" },
+          code: { type: "string", nullable: true },
           name: { type: "string" },
           building: { type: "string" },
           floor: { type: "string" },
           capacity: { type: "integer" },
+          description: { type: "string", nullable: true },
+          category: { type: "string", nullable: true },
           equipment: { type: "array", items: { type: "string" } },
           imageUrl: { type: "string", format: "uri", nullable: true },
-          status: { type: "string", enum: ["AVAILABLE", "INACTIVE"] },
+          status: { type: "string", enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"] },
         },
       },
       BookingInput: bookingInput,
@@ -192,6 +199,7 @@ export const swaggerDocument = {
           message: { type: "string" },
           type: { type: "string" },
           isRead: { type: "boolean" },
+          readAt: { type: "string", format: "date-time", nullable: true },
           createdAt: { type: "string", format: "date-time" },
         },
       },
@@ -250,18 +258,22 @@ export const swaggerDocument = {
     "/api/auth/register": {
       post: {
         tags: ["Auth"],
-        summary: "สมัครสมาชิก Student/Teacher",
+        summary: "สมัครสมาชิกด้วยข้อมูลโปรไฟล์และรหัสผู้ใช้งาน",
         requestBody: jsonBody({
           type: "object",
-          required: ["name", "email", "password"],
+          required: ["firstName", "lastName", "userCode", "phone", "email", "password"],
           properties: {
             name: { type: "string" },
+            firstName: { type: "string" },
+            lastName: { type: "string" },
+            userCode: { type: "string" },
+            phone: { type: "string" },
             email: { type: "string", format: "email" },
             password: { type: "string", minLength: 8 },
             role: {
               type: "string",
-              enum: ["STUDENT", "TEACHER"],
-              default: "STUDENT",
+              enum: ["USER", "STUDENT", "TEACHER"],
+              default: "USER",
             },
           },
         }),
@@ -274,8 +286,9 @@ export const swaggerDocument = {
         summary: "เข้าสู่ระบบและรับ JWT",
         requestBody: jsonBody({
           type: "object",
-          required: ["email", "password"],
+          required: ["username", "password"],
           properties: {
+            username: { type: "string", description: "Email หรือรหัสผู้ใช้งาน" },
             email: { type: "string", format: "email" },
             password: { type: "string" },
           },
@@ -326,6 +339,9 @@ export const swaggerDocument = {
           type: "object",
           properties: {
             name: { type: "string" },
+            firstName: { type: "string", nullable: true },
+            lastName: { type: "string", nullable: true },
+            phone: { type: "string", nullable: true },
             email: { type: "string", format: "email" },
           },
         }),
@@ -369,12 +385,15 @@ export const swaggerDocument = {
       get: {
         tags: ["Classrooms"],
         summary: "ค้นหาและดูห้องทั้งหมด",
-        security: bearer,
         parameters: [
           page,
           limit,
           { name: "search", in: "query", schema: { type: "string" } },
           { name: "building", in: "query", schema: { type: "string" } },
+          { name: "floor", in: "query", schema: { type: "string" } },
+          { name: "category", in: "query", schema: { type: "string" } },
+          { name: "status", in: "query", schema: { type: "string", enum: ["ACTIVE", "AVAILABLE", "INACTIVE", "MAINTENANCE"] } },
+          { name: "sort", in: "query", schema: { type: "string", enum: ["code", "capacity", "name"] } },
           { name: "minCapacity", in: "query", schema: { type: "integer" } },
           {
             name: "equipment",
@@ -390,7 +409,6 @@ export const swaggerDocument = {
       get: {
         tags: ["Classrooms"],
         summary: "ตรวจห้องว่างทั้งหมดหรือหลายห้อง",
-        security: bearer,
         parameters: [
           ...dateRange,
           {
@@ -415,7 +433,6 @@ export const swaggerDocument = {
       get: {
         tags: ["Classrooms"],
         summary: "ตารางการใช้ห้องทั้งหมดหรือหลายห้อง สูงสุด 31 วัน",
-        security: bearer,
         parameters: [
           ...dateRange,
           {
@@ -432,7 +449,6 @@ export const swaggerDocument = {
       get: {
         tags: ["Classrooms"],
         summary: "รายละเอียดห้อง",
-        security: bearer,
         parameters: [id],
         responses: success(),
       },
@@ -441,7 +457,6 @@ export const swaggerDocument = {
       get: {
         tags: ["Classrooms"],
         summary: "ตรวจห้องว่างรายห้อง",
-        security: bearer,
         parameters: [id, ...dateRange],
         responses: success(),
       },
@@ -647,7 +662,7 @@ export const swaggerDocument = {
           type: "object",
           required: ["status"],
           properties: {
-            status: { type: "string", enum: ["AVAILABLE", "INACTIVE"] },
+            status: { type: "string", enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"] },
           },
         }),
         responses: success(),
@@ -763,13 +778,17 @@ export const swaggerDocument = {
           required: ["name", "email", "password"],
           properties: {
             name: { type: "string" },
+            userCode: { type: "string" },
+            firstName: { type: "string" },
+            lastName: { type: "string" },
+            phone: { type: "string" },
             email: { type: "string", format: "email" },
             password: { type: "string", minLength: 8 },
             role: {
               type: "string",
               enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
             },
-            status: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
+            status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"] },
           },
         }),
         responses: { 201: { description: "Created" }, ...success() },
@@ -792,6 +811,10 @@ export const swaggerDocument = {
           type: "object",
           properties: {
             name: { type: "string" },
+            userCode: { type: "string", nullable: true },
+            firstName: { type: "string", nullable: true },
+            lastName: { type: "string", nullable: true },
+            phone: { type: "string", nullable: true },
             email: { type: "string", format: "email" },
           },
         }),
@@ -834,7 +857,7 @@ export const swaggerDocument = {
           type: "object",
           required: ["status"],
           properties: {
-            status: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
+            status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"] },
           },
         }),
         responses: success(),

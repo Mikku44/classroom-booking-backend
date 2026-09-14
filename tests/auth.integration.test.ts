@@ -19,6 +19,12 @@ describe('Authentication API', () => {
     const response = await request(app).post('/api/auth/login').send({ email: 'login@test.local', password: 'Test12345' });
     expect(response.status).toBe(200); expect(response.body.data.token).toEqual(expect.any(String)); expect(response.body.data.user).not.toHaveProperty('passwordHash');
   });
+  it('logs in with a user code', async () => {
+    const bcrypt = await import('bcryptjs');
+    jest.spyOn(prisma.user, 'findFirst').mockResolvedValue({ id: 103n, userCode: '65010001', name: 'Test Student', email: 'code@test.local', passwordHash: await bcrypt.hash('Test12345', 4), role: 'USER', status: 'ACTIVE', createdAt: new Date(), updatedAt: new Date() } as never);
+    const response = await request(app).post('/api/auth/login').send({ username: '65010001', password: 'Test12345' });
+    expect(response.status).toBe(200); expect(response.body.data.user.userCode).toBe('65010001');
+  });
   it('rejects an invalid login', async () => { jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(null); const response = await request(app).post('/api/auth/login').send({ email: 'missing@test.local', password: 'Wrong12345' }); expect(response.status).toBe(401); });
   it('rejects invalid registration input', async () => { const response = await request(app).post('/api/auth/register').send({ name: '', email: 'not-an-email', password: 'short' }); expect(response.status).toBe(400); expect(response.body.errors).toEqual(expect.any(Array)); });
 });

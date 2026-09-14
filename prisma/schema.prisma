@@ -18,11 +18,13 @@ enum Role {
 enum UserStatus {
   ACTIVE
   INACTIVE
+  SUSPENDED
 }
 
 enum ClassroomStatus {
   AVAILABLE
   INACTIVE
+  MAINTENANCE
 }
 
 enum BookingStatus {
@@ -37,7 +39,11 @@ enum BookingStatus {
 
 model User {
   id               BigInt         @id @default(autoincrement())
+  userCode         String?        @unique @db.VarChar(50)
   name             String         @db.VarChar(150)
+  firstName        String?        @db.VarChar(100)
+  lastName         String?        @db.VarChar(100)
+  phone            String?        @db.VarChar(20)
   email            String         @unique @db.VarChar(255)
   passwordHash     String         @db.VarChar(255)
   role             Role           @default(USER)
@@ -51,17 +57,20 @@ model User {
 }
 
 model Classroom {
-  id        BigInt          @id @default(autoincrement())
-  name      String          @db.VarChar(100)
-  building  String          @db.VarChar(100)
-  floor     String          @db.VarChar(50)
-  capacity  Int
-  equipment Json?
-  imageUrl  String?         @db.VarChar(500)
-  status    ClassroomStatus @default(AVAILABLE)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  bookings  Booking[]
+  id          BigInt          @id @default(autoincrement())
+  code        String?         @unique @db.VarChar(50)
+  name        String          @db.VarChar(100)
+  building    String          @db.VarChar(100)
+  floor       String          @db.VarChar(50)
+  capacity    Int
+  description String?         @db.Text
+  category    String?         @db.VarChar(100)
+  equipment   Json?
+  imageUrl    String?         @db.VarChar(500)
+  status      ClassroomStatus @default(AVAILABLE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  bookings    Booking[]
 }
 
 model Booking {
@@ -113,17 +122,18 @@ model AuditLog {
 }
 
 model Notification {
-  id        BigInt   @id @default(autoincrement())
+  id        BigInt    @id @default(autoincrement())
   userId    BigInt
   bookingId BigInt?
   title     String
-  message   String   @db.Text
+  message   String    @db.Text
   type      String
-  dedupeKey String?  @unique @db.VarChar(191)
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  dedupeKey String?   @unique @db.VarChar(191)
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking   Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([bookingId])

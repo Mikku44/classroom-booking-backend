@@ -1,12 +1,11 @@
 import { Router } from "express";
+import { ClassroomStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
-import { authenticate } from "../../middlewares/auth";
 import { AppError } from "../../middlewares/error";
 import { prisma, jsonSafe } from "../../utils/prisma";
 import { ok } from "../../utils/response";
 
 const router = Router();
-router.use(authenticate);
 
 const blockingStatuses = ["PENDING", "CONFIRMED", "IN_USE"] as const;
 const csvStrings = z.preprocess(
@@ -45,21 +44,42 @@ router.get("/", async (req, res, next) => {
       .object({
         search: z.string().optional(),
         building: z.string().optional(),
+        floor: z.string().optional(),
+        category: z.string().optional(),
+        status: z.enum(["ACTIVE", "AVAILABLE", "INACTIVE", "MAINTENANCE"]).optional(),
         minCapacity: z.coerce.number().int().positive().optional(),
         equipment: csvStrings,
+        sort: z.enum(["code", "capacity", "name"]).default("code"),
         page: z.coerce.number().int().positive().default(1),
         limit: z.coerce.number().int().positive().max(100).default(20),
       })
       .parse(req.query);
-    const where = {
-      status: "AVAILABLE" as const,
-      ...(query.search ? { name: { contains: query.search } } : {}),
+    const status: ClassroomStatus | undefined =
+      query.status === "ACTIVE" ? "AVAILABLE" : query.status;
+    const where: Prisma.ClassroomWhereInput = {
+      ...(status ? { status } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { code: { contains: query.search } },
+              { name: { contains: query.search } },
+              { building: { contains: query.search } },
+            ],
+          }
+        : {}),
       ...(query.building ? { building: query.building } : {}),
+      ...(query.floor ? { floor: query.floor } : {}),
+      ...(query.category ? { category: query.category } : {}),
       ...(query.minCapacity ? { capacity: { gte: query.minCapacity } } : {}),
     };
     const rooms = await prisma.classroom.findMany({
       where,
-      orderBy: { name: "asc" },
+      orderBy:
+        query.sort === "capacity"
+          ? { capacity: "desc" }
+          : query.sort === "name"
+            ? { name: "asc" }
+            : [{ code: "asc" }, { name: "asc" }],
     });
     const filtered = query.equipment?.length
       ? rooms.filter((room) => {
@@ -124,7 +144,6 @@ router.get("/availability", async (req, res, next) => {
           select: {
             id: true,
             classroomId: true,
-            bookingCode: true,
             startAt: true,
             endAt: true,
             status: true,
@@ -181,10 +200,6 @@ router.get("/schedule", async (req, res, next) => {
           select: {
             id: true,
             classroomId: true,
-            bookingCode: true,
-            purpose: true,
-            attendeeCount: true,
-            requestedEquipment: true,
             startAt: true,
             endAt: true,
             status: true,

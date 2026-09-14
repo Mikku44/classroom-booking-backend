@@ -62,6 +62,35 @@ const ensureTime = (startAt: Date, endAt: Date) => {
       400,
       `Booking cannot be made more than ${env.BOOKING_MAX_ADVANCE_DAYS} days in advance`,
     );
+  const localParts = (value: Date) =>
+    Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Bangkok",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      })
+        .formatToParts(value)
+        .map((part) => [part.type, part.value]),
+    );
+  const start = localParts(startAt);
+  const end = localParts(endAt);
+  const startDate = `${start.year}-${start.month}-${start.day}`;
+  const endDate = `${end.year}-${end.month}-${end.day}`;
+  const startTime = `${start.hour}:${start.minute}`;
+  const endTime = `${end.hour}:${end.minute}`;
+  if (
+    startDate !== endDate ||
+    startTime < env.BOOKING_OPEN_TIME ||
+    endTime > env.BOOKING_CLOSE_TIME
+  )
+    throw new AppError(
+      400,
+      `Bookings are allowed between ${env.BOOKING_OPEN_TIME} and ${env.BOOKING_CLOSE_TIME} Asia/Bangkok`,
+    );
 };
 
 const requestedEquipmentData = (items: string[]) =>

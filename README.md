@@ -42,7 +42,7 @@ Base URL: http://localhost:3000/api
     POST /api/auth/login
     Content-Type: application/json
 
-Request: email และ password ระบบจะคืน data.token และ data.user
+Request: username (รับทั้งอีเมลหรือรหัสผู้ใช้งาน) และ password ระบบจะคืน data.token และ data.user
 
 ### 2. หน้าสมัครสมาชิก
 
@@ -52,20 +52,23 @@ Request: email และ password ระบบจะคืน data.token แล�
 Request:
 
     {
-      "name": "สมชาย ใจดี",
+      "userCode": "65010001",
+      "firstName": "สมชาย",
+      "lastName": "ใจดี",
+      "phone": "0891234567",
       "email": "student@example.com",
       "password": "Student12345",
-      "role": "STUDENT"
+      "role": "USER"
     }
 
-Role ที่รองรับคือ STUDENT (นักศึกษา) และ TEACHER (อาจารย์)
+Role ที่สมัครเองได้คือ USER, STUDENT และ TEACHER
 
-### 3. หน้ารายการห้องเรียน
+### 3. หน้ารายการห้องเรียน (ไม่ต้อง Login)
 
     GET /api/classrooms?page=1&limit=20
     GET /api/classrooms?search=A101&building=Building%20A&minCapacity=30&page=1&limit=20
 
-ใช้ data แสดงชื่อห้อง อาคาร ชั้น จำนวนที่นั่ง และอุปกรณ์
+ใช้ data แสดงรหัสห้อง ชื่อห้อง อาคาร ชั้น จำนวนที่นั่ง รายละเอียด ประเภท อุปกรณ์ และสถานะ รองรับ filter `floor`, `category`, `status` และ `sort=code|capacity|name`
 
 ### 4. หน้าตารางการใช้ห้อง
 
@@ -298,6 +301,8 @@ Storage abstraction อยู่ที่ src/services/image-storage.ts เม�
     BOOKING_CANCEL_MINUTES=120
     BOOKING_MAX_DURATION_HOURS=8
     BOOKING_MAX_ADVANCE_DAYS=90
+    BOOKING_OPEN_TIME=08:00
+    BOOKING_CLOSE_TIME=20:00
     BOOKING_CHECKIN_EARLY_MINUTES=30
     BOOKING_CHECKIN_LATE_MINUTES=30
 

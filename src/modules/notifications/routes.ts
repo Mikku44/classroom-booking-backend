@@ -19,6 +19,6 @@ r.get('/', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 r.get('/unread-count', async (req, res, next) => { try { ok(res, { count: await prisma.notification.count({ where: { userId: req.user!.id, isRead: false } }) }); } catch (error) { next(error); } });
-r.patch('/read-all', async (req, res, next) => { try { const result = await prisma.notification.updateMany({ where: { userId: req.user!.id, isRead: false }, data: { isRead: true } }); ok(res, { updated: result.count }, 'Notifications marked read'); } catch (error) { next(error); } });
-r.patch('/:id/read', async (req, res, next) => { try { const notification = await prisma.notification.findFirst({ where: { id: BigInt(req.params.id), userId: req.user!.id } }); if (!notification) throw new AppError(404, 'Notification not found'); ok(res, jsonSafe(await prisma.notification.update({ where: { id: notification.id }, data: { isRead: true } }))); } catch (error) { next(error); } });
+r.patch('/read-all', async (req, res, next) => { try { const result = await prisma.notification.updateMany({ where: { userId: req.user!.id, isRead: false }, data: { isRead: true, readAt: new Date() } }); ok(res, { updated: result.count }, 'Notifications marked read'); } catch (error) { next(error); } });
+r.patch('/:id/read', async (req, res, next) => { try { const notification = await prisma.notification.findFirst({ where: { id: BigInt(req.params.id), userId: req.user!.id } }); if (!notification) throw new AppError(404, 'Notification not found'); ok(res, jsonSafe(await prisma.notification.update({ where: { id: notification.id }, data: { isRead: true, readAt: notification.readAt ?? new Date() } }))); } catch (error) { next(error); } });
 export default r;

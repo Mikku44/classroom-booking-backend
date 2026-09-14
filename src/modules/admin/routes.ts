@@ -20,15 +20,23 @@ const pageQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 const classroomInput = z.object({
+  code: z.string().trim().min(1).max(50),
   name: z.string().min(1).max(100),
   building: z.string().min(1).max(100),
-  floor: z.string().max(50),
+  floor: z.string().regex(/^[1-9]\d*$/).max(50),
   capacity: z.coerce.number().int().positive(),
+  description: z.string().trim().min(1).max(5000),
+  category: z.string().trim().min(1).max(100),
   equipment: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
   imageUrl: z.string().url().nullable().optional(),
+  status: z.nativeEnum(ClassroomStatus).default("AVAILABLE"),
 });
 const adminUserInput = z.object({
   name: z.string().min(1).max(150),
+  userCode: z.string().trim().min(3).max(50).optional(),
+  firstName: z.string().trim().min(1).max(100).optional(),
+  lastName: z.string().trim().min(1).max(100).optional(),
+  phone: z.string().regex(/^0[0-9]{8,9}$/).optional(),
   email: z.string().email(),
   password: z.string().min(8),
   role: z.nativeEnum(Role).default("USER"),
@@ -36,7 +44,11 @@ const adminUserInput = z.object({
 });
 const safeUser = {
   id: true,
+  userCode: true,
   name: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
   email: true,
   role: true,
   status: true,
@@ -80,6 +92,7 @@ r.get("/dashboard/summary", async (_req, res, next) => {
       completed,
       noShow,
       cancelled,
+      todayBookings,
       top,
     ] = await Promise.all([
       prisma.user.count(),
@@ -92,6 +105,23 @@ r.get("/dashboard/summary", async (_req, res, next) => {
       prisma.booking.count({ where: { status: "COMPLETED" } }),
       prisma.booking.count({ where: { status: "NO_SHOW" } }),
       prisma.booking.count({ where: { status: "CANCELLED" } }),
+      prisma.booking.count({
+        where: {
+          startAt: {
+            gte: new Date(
+              new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }) +
+                "T00:00:00+07:00",
+            ),
+            lt: new Date(
+              new Date(
+                new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }) +
+                  "T00:00:00+07:00",
+              ).getTime() +
+                24 * 60 * 60 * 1000,
+            ),
+          },
+        },
+      }),
       prisma.booking.groupBy({
         by: ["classroomId"],
         _count: { _all: true },
@@ -115,6 +145,7 @@ r.get("/dashboard/summary", async (_req, res, next) => {
         completed,
         noShow,
         cancelled,
+        todayBookings,
         mostBookedClassroom: topRoom
           ? { ...topRoom, bookingCount: top[0]._count._all }
           : null,
@@ -213,7 +244,12 @@ r.post("/classrooms", async (req, res, next) => {
     );
     created(res, jsonSafe(classroom));
   } catch (error) {
-    next(error);
+    const message = String((error as Error).message);
+    next(
+      message.includes("Unique constraint")
+        ? new AppError(409, "Classroom code already exists")
+        : error,
+    );
   }
 });
 r.patch("/classrooms/:id", async (req, res, next) => {
@@ -232,7 +268,12 @@ r.patch("/classrooms/:id", async (req, res, next) => {
     await audit(req.user!.id, "UPDATE", "CLASSROOM", id, oldValue, classroom);
     ok(res, jsonSafe(classroom), "Classroom updated");
   } catch (error) {
-    next(error);
+    const message = String((error as Error).message);
+    next(
+      message.includes("Unique constraint")
+        ? new AppError(409, "Classroom code already exists")
+        : error,
+    );
   }
 });
 r.patch("/classrooms/:id/status", async (req, res, next) => {
@@ -484,7 +525,7 @@ r.patch("/bookings/:id/reject", async (req, res, next) => {
 });
 r.patch("/bookings/:id/cancel", async (req, res, next) => {
   try {
-    const reason = z.string().min(1).parse(req.body.reason);
+    const reason = z.string().trim().min(1).optional().parse(req.body?.reason);
     ok(
       res,
       jsonSafe(
@@ -571,6 +612,7 @@ r.get("/users", async (req, res, next) => {
         ? {
             OR: [
               { name: { contains: q.search } },
+              { userCode: { contains: q.search } },
               { email: { contains: q.search } },
             ],
           }
@@ -635,7 +677,14 @@ r.patch("/users/:id", async (req, res, next) => {
   try {
     const id = BigInt(req.params.id);
     const input = z
-      .object({ name: z.string().min(1).max(150), email: z.string().email() })
+      .object({
+        name: z.string().min(1).max(150),
+        userCode: z.string().trim().min(3).max(50).nullable(),
+        firstName: z.string().trim().min(1).max(100).nullable(),
+        lastName: z.string().trim().min(1).max(100).nullable(),
+        phone: z.string().regex(/^0[0-9]{8,9}$/).nullable(),
+        email: z.string().email(),
+      })
       .partial()
       .parse(req.body);
     const oldValue = await prisma.user.findUnique({
@@ -693,7 +742,7 @@ r.patch("/users/:id/status", async (req, res, next) => {
     if (!oldValue) throw new AppError(404, "User not found");
     if (
       oldValue.role === "ADMIN" &&
-      status === "INACTIVE" &&
+      status !== "ACTIVE" &&
       (await prisma.user.count({
         where: { role: "ADMIN", status: "ACTIVE" },
       })) <= 1
