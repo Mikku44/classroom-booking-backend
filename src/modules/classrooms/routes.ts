@@ -1,2 +1,248 @@
-import {Router} from 'express'; import {prisma,jsonSafe} from '../../utils/prisma'; import {ok} from '../../utils/response'; import {AppError} from '../../middlewares/error'; import {authenticate} from '../../middlewares/auth'; import {z} from 'zod';
-const r=Router(); r.use(authenticate); r.get('/',async(req,res,next)=>{try{const q=z.object({search:z.string().optional(),building:z.string().optional(),minCapacity:z.coerce.number().optional(),page:z.coerce.number().positive().default(1),limit:z.coerce.number().positive().max(100).default(20)}).parse(req.query);const where={status:'AVAILABLE' as const,...(q.search?{name:{contains:q.search}}:{}),...(q.building?{building:q.building}:{}),...(q.minCapacity?{capacity:{gte:q.minCapacity}}:{})};const [data,total]=await Promise.all([prisma.classroom.findMany({where,skip:(q.page-1)*q.limit,take:q.limit,orderBy:{name:'asc'}}),prisma.classroom.count({where})]);ok(res,jsonSafe(data),'Success',{page:q.page,limit:q.limit,total})}catch(e){next(e)}}); r.get('/:id',async(req,res,next)=>{try{const c=await prisma.classroom.findUnique({where:{id:BigInt(req.params.id)}});if(!c)throw new AppError(404,'Classroom not found');ok(res,jsonSafe(c))}catch(e){next(e)}}); r.get('/:id/availability',async(req,res,next)=>{try{const q=z.object({startAt:z.coerce.date(),endAt:z.coerce.date()}).parse(req.query);if(q.endAt<=q.startAt)throw new AppError(400,'Invalid time range');const count=await prisma.booking.count({where:{classroomId:BigInt(req.params.id),status:{in:['PENDING','CONFIRMED']},startAt:{lt:q.endAt},endAt:{gt:q.startAt}}});ok(res,{available:count===0})}catch(e){next(e)}}); export default r;
+import { Router } from "express";
+import { z } from "zod";
+import { authenticate } from "../../middlewares/auth";
+import { AppError } from "../../middlewares/error";
+import { prisma, jsonSafe } from "../../utils/prisma";
+import { ok } from "../../utils/response";
+
+const router = Router();
+router.use(authenticate);
+
+const blockingStatuses = ["PENDING", "CONFIRMED", "IN_USE"] as const;
+const csvStrings = z.preprocess(
+  (value) =>
+    value === undefined
+      ? undefined
+      : (Array.isArray(value) ? value : [value])
+          .flatMap((item) => String(item).split(","))
+          .map((item) => item.trim())
+          .filter(Boolean),
+  z.array(z.string().min(1)).max(100).optional(),
+);
+const csvIds = z.preprocess(
+  (value) =>
+    value === undefined
+      ? undefined
+      : (Array.isArray(value) ? value : [value])
+          .flatMap((item) => String(item).split(","))
+          .map((item) => item.trim())
+          .filter(Boolean),
+  z.array(z.coerce.bigint().positive()).max(100).optional(),
+);
+
+const rangeQuery = z.object({
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+  classroomIds: csvIds,
+});
+const ensureRange = (startAt: Date, endAt: Date) => {
+  if (endAt <= startAt) throw new AppError(400, "Invalid time range");
+};
+
+router.get("/", async (req, res, next) => {
+  try {
+    const query = z
+      .object({
+        search: z.string().optional(),
+        building: z.string().optional(),
+        minCapacity: z.coerce.number().int().positive().optional(),
+        equipment: csvStrings,
+        page: z.coerce.number().int().positive().default(1),
+        limit: z.coerce.number().int().positive().max(100).default(20),
+      })
+      .parse(req.query);
+    const where = {
+      status: "AVAILABLE" as const,
+      ...(query.search ? { name: { contains: query.search } } : {}),
+      ...(query.building ? { building: query.building } : {}),
+      ...(query.minCapacity ? { capacity: { gte: query.minCapacity } } : {}),
+    };
+    const rooms = await prisma.classroom.findMany({
+      where,
+      orderBy: { name: "asc" },
+    });
+    const filtered = query.equipment?.length
+      ? rooms.filter((room) => {
+          const equipment = Array.isArray(room.equipment)
+            ? room.equipment.map(String)
+            : [];
+          return query.equipment!.every((item) => equipment.includes(item));
+        })
+      : rooms;
+    const data = filtered.slice(
+      (query.page - 1) * query.limit,
+      query.page * query.limit,
+    );
+    ok(res, jsonSafe(data), "Success", {
+      page: query.page,
+      limit: query.limit,
+      total: filtered.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/availability", async (req, res, next) => {
+  try {
+    const query = rangeQuery
+      .extend({
+        building: z.string().optional(),
+        minCapacity: z.coerce.number().int().positive().optional(),
+        equipment: csvStrings,
+        availableOnly: z.enum(["true", "false"]).default("false"),
+      })
+      .parse(req.query);
+    ensureRange(query.startAt, query.endAt);
+    const rooms = await prisma.classroom.findMany({
+      where: {
+        status: "AVAILABLE",
+        ...(query.classroomIds?.length
+          ? { id: { in: query.classroomIds } }
+          : {}),
+        ...(query.building ? { building: query.building } : {}),
+        ...(query.minCapacity ? { capacity: { gte: query.minCapacity } } : {}),
+      },
+      orderBy: [{ building: "asc" }, { name: "asc" }],
+    });
+    const equipmentFiltered = query.equipment?.length
+      ? rooms.filter((room) => {
+          const equipment = Array.isArray(room.equipment)
+            ? room.equipment.map(String)
+            : [];
+          return query.equipment!.every((item) => equipment.includes(item));
+        })
+      : rooms;
+    const conflicts = equipmentFiltered.length
+      ? await prisma.booking.findMany({
+          where: {
+            classroomId: { in: equipmentFiltered.map((room) => room.id) },
+            status: { in: [...blockingStatuses] },
+            startAt: { lt: query.endAt },
+            endAt: { gt: query.startAt },
+          },
+          select: {
+            id: true,
+            classroomId: true,
+            bookingCode: true,
+            startAt: true,
+            endAt: true,
+            status: true,
+          },
+        })
+      : [];
+    const result = equipmentFiltered
+      .map((room) => {
+        const roomConflicts = conflicts.filter(
+          (booking) => booking.classroomId === room.id,
+        );
+        return {
+          ...room,
+          available: roomConflicts.length === 0,
+          conflicts: roomConflicts,
+        };
+      })
+      .filter((room) => query.availableOnly !== "true" || room.available);
+    ok(
+      res,
+      jsonSafe({ startAt: query.startAt, endAt: query.endAt, rooms: result }),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/schedule", async (req, res, next) => {
+  try {
+    const query = rangeQuery.parse(req.query);
+    ensureRange(query.startAt, query.endAt);
+    if (
+      query.endAt.getTime() - query.startAt.getTime() >
+      31 * 24 * 60 * 60 * 1000
+    )
+      throw new AppError(400, "Schedule range cannot exceed 31 days");
+    const rooms = await prisma.classroom.findMany({
+      where: {
+        status: "AVAILABLE",
+        ...(query.classroomIds?.length
+          ? { id: { in: query.classroomIds } }
+          : {}),
+      },
+      orderBy: [{ building: "asc" }, { name: "asc" }],
+    });
+    const bookings = rooms.length
+      ? await prisma.booking.findMany({
+          where: {
+            classroomId: { in: rooms.map((room) => room.id) },
+            status: { in: [...blockingStatuses] },
+            startAt: { lt: query.endAt },
+            endAt: { gt: query.startAt },
+          },
+          select: {
+            id: true,
+            classroomId: true,
+            bookingCode: true,
+            purpose: true,
+            attendeeCount: true,
+            requestedEquipment: true,
+            startAt: true,
+            endAt: true,
+            status: true,
+          },
+          orderBy: { startAt: "asc" },
+        })
+      : [];
+    ok(
+      res,
+      jsonSafe({
+        startAt: query.startAt,
+        endAt: query.endAt,
+        rooms: rooms.map((room) => ({
+          ...room,
+          bookings: bookings.filter(
+            (booking) => booking.classroomId === room.id,
+          ),
+        })),
+      }),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:id", async (req, res, next) => {
+  try {
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: BigInt(req.params.id) },
+    });
+    if (!classroom) throw new AppError(404, "Classroom not found");
+    ok(res, jsonSafe(classroom));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:id/availability", async (req, res, next) => {
+  try {
+    const query = rangeQuery.omit({ classroomIds: true }).parse(req.query);
+    ensureRange(query.startAt, query.endAt);
+    const classroom = await prisma.classroom.findUnique({
+      where: { id: BigInt(req.params.id) },
+    });
+    if (!classroom || classroom.status !== "AVAILABLE")
+      throw new AppError(404, "Classroom not found or inactive");
+    const count = await prisma.booking.count({
+      where: {
+        classroomId: classroom.id,
+        status: { in: [...blockingStatuses] },
+        startAt: { lt: query.endAt },
+        endAt: { gt: query.startAt },
+      },
+    });
+    ok(res, { available: count === 0 });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;

@@ -25,6 +25,7 @@ erDiagram
         VARCHAR floor
         INT capacity
         JSON equipment
+        VARCHAR imageUrl
         ENUM status
         DATETIME createdAt
         DATETIME updatedAt
@@ -35,6 +36,8 @@ erDiagram
         BIGINT userId FK
         BIGINT classroomId FK
         VARCHAR purpose
+        INT attendeeCount
+        JSON requestedEquipment
         TEXT description
         DATETIME startAt
         DATETIME endAt
@@ -42,6 +45,10 @@ erDiagram
         TEXT adminNote
         BIGINT approvedBy FK
         DATETIME approvedAt
+        DATETIME checkedInAt
+        DATETIME completedAt
+        DATETIME cancelledAt
+        TEXT cancelReason
         DATETIME createdAt
         DATETIME updatedAt
     }
@@ -58,9 +65,11 @@ erDiagram
     NOTIFICATION {
         BIGINT id PK
         BIGINT userId FK
+        BIGINT bookingId FK
         VARCHAR title
         TEXT message
         VARCHAR type
+        VARCHAR dedupeKey UK
         BOOLEAN isRead
         DATETIME createdAt
     }
@@ -73,3 +82,7 @@ erDiagram
 - Classroom หนึ่งห้องมี Booking ได้หลายรายการ
 - User หนึ่งคนได้รับ Notification ได้หลายรายการ
 - User หนึ่งคนสร้าง Audit Log ได้หลายรายการ
+
+Role: `USER`, `STUDENT`, `TEACHER`, `STAFF`, `ADMIN`
+
+Booking Status: `PENDING`, `CONFIRMED`, `IN_USE`, `COMPLETED`, `REJECTED`, `CANCELLED`, `NO_SHOW`

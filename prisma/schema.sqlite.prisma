@@ -1,103 +1,131 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "sqlite"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
+
 enum Role {
   USER
   STUDENT
   TEACHER
+  STAFF
   ADMIN
 }
+
 enum UserStatus {
   ACTIVE
   INACTIVE
 }
+
 enum ClassroomStatus {
   AVAILABLE
   INACTIVE
 }
+
 enum BookingStatus {
   PENDING
   CONFIRMED
+  IN_USE
   REJECTED
   CANCELLED
   COMPLETED
+  NO_SHOW
 }
+
 model User {
-  id BigInt @id @default(autoincrement())
-  name String
-  email String @unique
-  passwordHash String
-  role Role @default(USER)
-  status UserStatus @default(ACTIVE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  bookings Booking[] @relation("BookingUser")
-  approvedBookings Booking[] @relation("BookingApprover")
-  notifications Notification[]
-  auditLogs AuditLog[]
+  id               BigInt         @id @default(autoincrement())
+  name             String
+  email            String         @unique
+  passwordHash     String
+  role             Role           @default(USER)
+  status           UserStatus     @default(ACTIVE)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  bookings         Booking[]      @relation("BookingUser")
+  approvedBookings Booking[]      @relation("BookingApprover")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
 }
+
 model Classroom {
-  id BigInt @id @default(autoincrement())
-  name String
-  building String
-  floor String
-  capacity Int
+  id        BigInt          @id @default(autoincrement())
+  name      String
+  building  String
+  floor     String
+  capacity  Int
   equipment Json?
-  imageUrl String?
-  status ClassroomStatus @default(AVAILABLE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  bookings Booking[]
+  imageUrl  String?
+  status    ClassroomStatus @default(AVAILABLE)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  bookings  Booking[]
 }
+
 model Booking {
-  id BigInt @id @default(autoincrement())
-  bookingCode String @unique
-  userId BigInt
-  classroomId BigInt
-  purpose String
-  description String?
-  startAt DateTime
-  endAt DateTime
-  status BookingStatus @default(PENDING)
-  adminNote String?
-  approvedBy BigInt?
-  approvedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user User @relation("BookingUser", fields: [userId], references: [id])
-  classroom Classroom @relation(fields: [classroomId], references: [id])
-  approver User? @relation("BookingApprover", fields: [approvedBy], references: [id])
+  id                 BigInt         @id @default(autoincrement())
+  bookingCode        String         @unique
+  userId             BigInt
+  classroomId        BigInt
+  purpose            String
+  attendeeCount      Int            @default(1)
+  requestedEquipment Json?
+  description        String?
+  startAt            DateTime
+  endAt              DateTime
+  status             BookingStatus  @default(PENDING)
+  adminNote          String?
+  approvedBy         BigInt?
+  approvedAt         DateTime?
+  checkedInAt        DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  user               User           @relation("BookingUser", fields: [userId], references: [id])
+  classroom          Classroom      @relation(fields: [classroomId], references: [id])
+  approver           User?          @relation("BookingApprover", fields: [approvedBy], references: [id])
+  notifications      Notification[]
+
   @@index([userId])
   @@index([classroomId])
+  @@index([classroomId, startAt, endAt, status])
   @@index([status])
   @@index([startAt])
   @@index([endAt])
 }
+
 model AuditLog {
-  id BigInt @id @default(autoincrement())
-  userId BigInt?
-  action String
-  entity String
-  entityId BigInt?
-  oldValue Json?
-  newValue Json?
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt?
+  action    String
+  entity    String
+  entityId  BigInt?
+  oldValue  Json?
+  newValue  Json?
   createdAt DateTime @default(now())
-  user User? @relation(fields: [userId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
+
   @@index([userId])
 }
+
 model Notification {
-  id BigInt @id @default(autoincrement())
-  userId BigInt
-  title String
-  message String
-  type String
-  isRead Boolean @default(false)
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt
+  bookingId BigInt?
+  title     String
+  message   String
+  type      String
+  dedupeKey String?  @unique
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
   @@index([userId])
+  @@index([bookingId])
   @@index([isRead])
 }

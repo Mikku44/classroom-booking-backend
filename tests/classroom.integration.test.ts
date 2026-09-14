@@ -1,0 +1,96 @@
+import request from "supertest";
+import jwt from "jsonwebtoken";
+import { app } from "../src/app";
+import { prisma } from "../src/utils/prisma";
+import { env } from "../src/config/env";
+
+const token = () => jwt.sign({ id: "10" }, env.JWT_SECRET);
+const startAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+
+describe("Classroom availability and schedule API", () => {
+  beforeEach(() => {
+    jest
+      .spyOn(prisma.user, "findUnique")
+      .mockResolvedValue({
+        id: 10n,
+        role: "STUDENT",
+        email: "student@test.local",
+        status: "ACTIVE",
+      } as never);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("checks multiple rooms in one request", async () => {
+    jest.spyOn(prisma.classroom, "findMany").mockResolvedValue([
+      {
+        id: 1n,
+        name: "A101",
+        building: "A",
+        equipment: ["Projector"],
+        status: "AVAILABLE",
+      },
+      {
+        id: 2n,
+        name: "A102",
+        building: "A",
+        equipment: ["Projector"],
+        status: "AVAILABLE",
+      },
+    ] as never);
+    jest
+      .spyOn(prisma.booking, "findMany")
+      .mockResolvedValue([
+        {
+          id: 50n,
+          classroomId: 2n,
+          bookingCode: "BK-50",
+          startAt,
+          endAt,
+          status: "CONFIRMED",
+        },
+      ] as never);
+    const response = await request(app)
+      .get(
+        `/api/classrooms/availability?startAt=${encodeURIComponent(startAt.toISOString())}&endAt=${encodeURIComponent(endAt.toISOString())}&classroomIds=1,2`,
+      )
+      .set("Authorization", "Bearer " + token());
+    expect(response.status).toBe(200);
+    expect(response.body.data.rooms).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "1", available: true }),
+        expect.objectContaining({ id: "2", available: false }),
+      ]),
+    );
+  });
+
+  it("returns schedules grouped by selected rooms", async () => {
+    jest
+      .spyOn(prisma.classroom, "findMany")
+      .mockResolvedValue([
+        { id: 1n, name: "A101", building: "A", status: "AVAILABLE" },
+      ] as never);
+    jest
+      .spyOn(prisma.booking, "findMany")
+      .mockResolvedValue([
+        {
+          id: 50n,
+          classroomId: 1n,
+          bookingCode: "BK-50",
+          purpose: "Lecture",
+          attendeeCount: 20,
+          requestedEquipment: [],
+          startAt,
+          endAt,
+          status: "CONFIRMED",
+        },
+      ] as never);
+    const response = await request(app)
+      .get(
+        `/api/classrooms/schedule?startAt=${encodeURIComponent(startAt.toISOString())}&endAt=${encodeURIComponent(endAt.toISOString())}&classroomIds=1`,
+      )
+      .set("Authorization", "Bearer " + token());
+    expect(response.status).toBe(200);
+    expect(response.body.data.rooms[0].bookings).toHaveLength(1);
+  });
+});

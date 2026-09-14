@@ -1,81 +1,928 @@
-const response = {
-  Success: { type: 'object', properties: { success: { type: 'boolean', example: true }, message: { type: 'string', example: 'Success' }, data: { type: 'object' }, meta: { $ref: '#/components/schemas/Pagination' } } },
-  Error: { type: 'object', required: ['success', 'message'], properties: { success: { type: 'boolean', example: false }, message: { type: 'string', example: 'Validation failed' }, errors: { type: 'array', items: { $ref: '#/components/schemas/FieldError' } } } }
-};
-const id = { name: 'id', in: 'path', required: true, schema: { type: 'integer', format: 'int64' } };
 const bearer = [{ bearerAuth: [] }];
-const extraPaths = {
-  '/api/bookings/{id}': {
-    get: { tags: ['Bookings'], summary: 'ดูรายละเอียดการจอง', security: bearer, parameters: [id], responses: { 200: { description: 'Booking detail' }, 404: { $ref: '#/components/responses/NotFound' } } },
-    patch: { tags: ['Bookings'], summary: 'แก้ไขการจองสถานะ PENDING', security: bearer, parameters: [id], requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Booking' } } } }, responses: { 200: { description: 'Booking updated' }, 409: { $ref: '#/components/responses/Conflict' } } },
-    delete: { tags: ['Bookings'], summary: 'ยกเลิกการจองแบบ soft delete', security: bearer, parameters: [id], responses: { 200: { description: 'Booking cancelled' } } }
-  },
-  '/api/admin/classrooms/{id}': {
-    get: { tags: ['Admin'], summary: 'รายละเอียดและประวัติห้อง', security: bearer, parameters: [id], responses: { 200: { description: 'Classroom detail' } } },
-    patch: { tags: ['Admin'], summary: 'แก้ไขห้องเรียน', security: bearer, parameters: [id], requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Classroom' } } } }, responses: { 200: { description: 'Classroom updated' } } },
-    delete: { tags: ['Admin'], summary: 'ปิดใช้งานห้องแบบ soft delete', security: bearer, parameters: [id], responses: { 200: { description: 'Classroom deactivated' } } }
-  },
-  '/api/admin/bookings/{id}': { get: { tags: ['Admin'], summary: 'รายละเอียดและประวัติการจอง', security: bearer, parameters: [id], responses: { 200: { description: 'Booking detail with history' } } } },
-  '/api/admin/bookings/{id}/cancel': { patch: { tags: ['Admin'], summary: 'Admin ยกเลิกการจอง', security: bearer, parameters: [id], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['reason'], properties: { reason: { type: 'string' } } } } } }, responses: { 200: { description: 'Booking cancelled' } } } },
-  '/api/admin/users/{id}': {
-    get: { tags: ['Admin'], summary: 'ข้อมูลและประวัติผู้ใช้', security: bearer, parameters: [id], responses: { 200: { description: 'User detail' } } },
-    patch: { tags: ['Admin'], summary: 'แก้ไขผู้ใช้', security: bearer, parameters: [id], responses: { 200: { description: 'User updated' } } },
-    delete: { tags: ['Admin'], summary: 'ปิดผู้ใช้แบบ soft delete', security: bearer, parameters: [id], responses: { 200: { description: 'User deactivated' } } }
-  },
-  '/api/admin/users/{id}/role': { patch: { tags: ['Admin'], summary: 'เปลี่ยน Role', security: bearer, parameters: [id], responses: { 200: { description: 'Role updated' } } } },
-  '/api/admin/users/{id}/reset-password': { patch: { tags: ['Admin'], summary: 'รีเซ็ตรหัสผ่าน', security: bearer, parameters: [id], responses: { 200: { description: 'Password reset' } } } },
-  '/api/admin/reports/bookings': { get: { tags: ['Admin'], summary: 'รายงานการจอง', security: bearer, responses: { 200: { description: 'Booking report' } } } },
-  '/api/admin/reports/classrooms': { get: { tags: ['Admin'], summary: 'สถิติการใช้ห้อง', security: bearer, responses: { 200: { description: 'Classroom report' } } } },
-  '/api/admin/reports/users': { get: { tags: ['Admin'], summary: 'สถิติผู้ใช้', security: bearer, responses: { 200: { description: 'User report' } } } },
-  '/api/admin/reports/export': { get: { tags: ['Admin'], summary: 'Export CSV', security: bearer, responses: { 200: { description: 'CSV file', content: { 'text/csv': { schema: { type: 'string' } } } } } } },
-  '/api/admin/uploads/images': { post: { tags: ['Admin'], summary: 'อัปโหลดรูปภาพ สูงสุด 5 MB', security: bearer, requestBody: { required: true, content: { 'multipart/form-data': { schema: { type: 'object', required: ['image'], properties: { image: { type: 'string', format: 'binary' } } } } } }, responses: { 201: { description: 'Image uploaded' }, 400: { $ref: '#/components/responses/BadRequest' } } } },
-  '/api/admin/uploads/images/{key}': { delete: { tags: ['Admin'], summary: 'ลบรูปภาพ local', security: bearer, parameters: [{ name: 'key', in: 'path', required: true, schema: { type: 'string' } }], responses: { 200: { description: 'Image deleted' } } } }
+const id = {
+  name: "id",
+  in: "path",
+  required: true,
+  schema: { type: "integer", format: "int64" },
 };
-export const swaggerDocument = {
-  openapi: '3.0.3',
-  info: { title: 'Classroom Reservation API', version: '1.0.0', description: 'REST API สำหรับระบบจองห้องเรียน' },
-  servers: [{ url: 'http://localhost:3000', description: 'Local server' }],
-  tags: [{ name: 'Health' }, { name: 'Auth' }, { name: 'Users' }, { name: 'Classrooms' }, { name: 'Bookings' }, { name: 'Notifications' }, { name: 'Admin' }],
-  components: {
-    securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
-    schemas: {
-      Success: response.Success,
-      Pagination: { type: 'object', properties: { page: { type: 'integer', example: 1 }, limit: { type: 'integer', example: 20 }, total: { type: 'integer', example: 100 } } },
-      FieldError: { type: 'object', properties: { field: { type: 'string', example: 'email' }, message: { type: 'string', example: 'Invalid email' } } },
-      User: { type: 'object', properties: { id: { type: 'integer', format: 'int64' }, name: { type: 'string', example: 'Demo User' }, email: { type: 'string', format: 'email' }, role: { type: 'string', enum: ['USER', 'STUDENT', 'TEACHER', 'ADMIN'] }, status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, createdAt: { type: 'string', format: 'date-time' } } },
-      Classroom: { type: 'object', properties: { id: { type: 'integer', format: 'int64' }, name: { type: 'string', example: 'A101' }, building: { type: 'string', example: 'Building A' }, floor: { type: 'string', example: '1' }, capacity: { type: 'integer', example: 40 }, equipment: { type: 'array', items: { type: 'string' } }, imageUrl: { type: 'string', format: 'uri', nullable: true }, status: { type: 'string', enum: ['AVAILABLE', 'INACTIVE'] } } },
-      Booking: { type: 'object', properties: { id: { type: 'integer', format: 'int64' }, bookingCode: { type: 'string', example: 'BK-1720000000000-123' }, userId: { type: 'integer' }, classroomId: { type: 'integer' }, purpose: { type: 'string' }, description: { type: 'string' }, startAt: { type: 'string', format: 'date-time' }, endAt: { type: 'string', format: 'date-time' }, status: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED', 'COMPLETED'] }, adminNote: { type: 'string' } } },
-      Notification: { type: 'object', properties: { id: { type: 'integer' }, userId: { type: 'integer' }, title: { type: 'string' }, message: { type: 'string' }, type: { type: 'string' }, isRead: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' } } }
+const page = {
+  name: "page",
+  in: "query",
+  schema: { type: "integer", minimum: 1, default: 1 },
+};
+const limit = {
+  name: "limit",
+  in: "query",
+  schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+};
+const dateRange = [
+  {
+    name: "startAt",
+    in: "query",
+    required: true,
+    schema: { type: "string", format: "date-time" },
+  },
+  {
+    name: "endAt",
+    in: "query",
+    required: true,
+    schema: { type: "string", format: "date-time" },
+  },
+];
+const jsonBody = (schema: object, required = true) => ({
+  required,
+  content: { "application/json": { schema } },
+});
+const success = (description = "Success") => ({
+  200: { description },
+  400: { $ref: "#/components/responses/BadRequest" },
+  401: { $ref: "#/components/responses/Unauthorized" },
+  403: { $ref: "#/components/responses/Forbidden" },
+  404: { $ref: "#/components/responses/NotFound" },
+  409: { $ref: "#/components/responses/Conflict" },
+});
+
+const bookingInput = {
+  type: "object",
+  required: ["classroomId", "purpose", "attendeeCount", "startAt", "endAt"],
+  properties: {
+    classroomId: { type: "integer", format: "int64" },
+    userId: {
+      type: "integer",
+      format: "int64",
+      description: "STAFF/ADMIN เท่านั้น สำหรับจองแทนผู้อื่น",
     },
-    responses: { BadRequest: { description: 'ข้อมูลไม่ถูกต้อง', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }, Unauthorized: { description: 'ยังไม่ได้ Login หรือ Token ไม่ถูกต้อง', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }, Forbidden: { description: 'ไม่มีสิทธิ์', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }, NotFound: { description: 'ไม่พบข้อมูล', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } }, Conflict: { description: 'ข้อมูลซ้ำหรือเวลาจองชนกัน', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } }
+    purpose: { type: "string", maxLength: 255 },
+    attendeeCount: { type: "integer", minimum: 1 },
+    requestedEquipment: {
+      type: "array",
+      items: { type: "string" },
+      example: ["Projector", "Microphone"],
+    },
+    description: { type: "string", maxLength: 5000 },
+    startAt: { type: "string", format: "date-time" },
+    endAt: { type: "string", format: "date-time" },
+  },
+};
+
+export const swaggerDocument = {
+  openapi: "3.0.3",
+  info: {
+    title: "Classroom Reservation API",
+    version: "2.0.0",
+    description: "REST API ครบ Business Flow สำหรับระบบจองห้องเรียน",
+  },
+  servers: [{ url: "/", description: "Current server" }],
+  tags: [
+    { name: "Health" },
+    { name: "Auth" },
+    { name: "Users" },
+    { name: "Classrooms" },
+    { name: "Bookings" },
+    { name: "Notifications" },
+    { name: "Admin" },
+    { name: "Uploads" },
+    { name: "Reports" },
+  ],
+  components: {
+    securitySchemes: {
+      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+    },
+    schemas: {
+      Error: {
+        type: "object",
+        required: ["success", "message"],
+        properties: {
+          success: { type: "boolean", example: false },
+          message: { type: "string" },
+          errors: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                field: { type: "string" },
+                message: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+      User: {
+        type: "object",
+        properties: {
+          id: { type: "integer", format: "int64" },
+          name: { type: "string" },
+          email: { type: "string", format: "email" },
+          role: {
+            type: "string",
+            enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+          },
+          status: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+      Classroom: {
+        type: "object",
+        properties: {
+          id: { type: "integer", format: "int64" },
+          name: { type: "string" },
+          building: { type: "string" },
+          floor: { type: "string" },
+          capacity: { type: "integer" },
+          equipment: { type: "array", items: { type: "string" } },
+          imageUrl: { type: "string", format: "uri", nullable: true },
+          status: { type: "string", enum: ["AVAILABLE", "INACTIVE"] },
+        },
+      },
+      BookingInput: bookingInput,
+      Booking: {
+        allOf: [
+          {
+            type: "object",
+            properties: {
+              id: { type: "integer", format: "int64" },
+              bookingCode: {
+                type: "string",
+                example: "BK-20260914-1789322606421513",
+              },
+              status: {
+                type: "string",
+                enum: [
+                  "PENDING",
+                  "CONFIRMED",
+                  "IN_USE",
+                  "COMPLETED",
+                  "REJECTED",
+                  "CANCELLED",
+                  "NO_SHOW",
+                ],
+              },
+              approvedAt: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+              },
+              checkedInAt: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+              },
+              completedAt: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+              },
+              cancelledAt: {
+                type: "string",
+                format: "date-time",
+                nullable: true,
+              },
+              cancelReason: { type: "string", nullable: true },
+            },
+          },
+          bookingInput,
+        ],
+      },
+      Notification: {
+        type: "object",
+        properties: {
+          id: { type: "integer", format: "int64" },
+          bookingId: { type: "integer", format: "int64", nullable: true },
+          title: { type: "string" },
+          message: { type: "string" },
+          type: { type: "string" },
+          isRead: { type: "boolean" },
+          createdAt: { type: "string", format: "date-time" },
+        },
+      },
+    },
+    responses: {
+      BadRequest: {
+        description: "ข้อมูลไม่ถูกต้อง",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/Error" },
+          },
+        },
+      },
+      Unauthorized: {
+        description: "Token ไม่ถูกต้องหรือผู้ใช้ถูกปิดใช้งาน",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/Error" },
+          },
+        },
+      },
+      Forbidden: {
+        description: "ไม่มีสิทธิ์",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/Error" },
+          },
+        },
+      },
+      NotFound: {
+        description: "ไม่พบข้อมูล",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/Error" },
+          },
+        },
+      },
+      Conflict: {
+        description: "สถานะไม่ถูกต้องหรือเวลาจองชนกัน",
+        content: {
+          "application/json": {
+            schema: { $ref: "#/components/schemas/Error" },
+          },
+        },
+      },
+    },
   },
   paths: {
-    '/health': { get: { tags: ['Health'], summary: 'ตรวจสอบสถานะ API', responses: { 200: { description: 'Healthy', content: { 'application/json': { schema: { $ref: '#/components/schemas/Success' } } } } } } },
-    '/api/auth/register': { post: { tags: ['Auth'], summary: 'สมัครสมาชิก', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'email', 'password'], properties: { name: { type: 'string', example: 'Demo User' }, email: { type: 'string', format: 'email' }, password: { type: 'string', format: 'password', minLength: 8 } } } } } }, responses: { 201: { description: 'สร้างผู้ใช้สำเร็จ' }, 400: { $ref: '#/components/responses/BadRequest' }, 409: { $ref: '#/components/responses/Conflict' } } } },
-    '/api/auth/login': { post: { tags: ['Auth'], summary: 'เข้าสู่ระบบและรับ JWT', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email', 'password'], properties: { email: { type: 'string', format: 'email' }, password: { type: 'string', format: 'password' } } } } } }, responses: { 200: { description: 'เข้าสู่ระบบสำเร็จ' }, 401: { $ref: '#/components/responses/Unauthorized' } } } },
-    '/api/auth/me': { get: { tags: ['Auth'], summary: 'ดูผู้ใช้ที่ login อยู่', security: bearer, responses: { 200: { description: 'ข้อมูลผู้ใช้', content: { 'application/json': { schema: { $ref: '#/components/schemas/Success' } } } }, 401: { $ref: '#/components/responses/Unauthorized' } } } },
-    '/api/users/me': { get: { tags: ['Users'], summary: 'ดูโปรไฟล์ตัวเอง', security: bearer, responses: { 200: { description: 'โปรไฟล์ผู้ใช้' }, 401: { $ref: '#/components/responses/Unauthorized' } } }, patch: { tags: ['Users'], summary: 'แก้ไขโปรไฟล์', security: bearer, requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' }, email: { type: 'string', format: 'email' } } } } } }, responses: { 200: { description: 'แก้ไขสำเร็จ' }, 400: { $ref: '#/components/responses/BadRequest' } } } },
-    '/api/users/me/password': { patch: { tags: ['Users'], summary: 'เปลี่ยนรหัสผ่าน', security: bearer, requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['currentPassword', 'newPassword'], properties: { currentPassword: { type: 'string', format: 'password' }, newPassword: { type: 'string', format: 'password', minLength: 8 } } } } } }, responses: { 200: { description: 'เปลี่ยนสำเร็จ' }, 400: { $ref: '#/components/responses/BadRequest' } } } },
-    '/api/classrooms': { get: { tags: ['Classrooms'], summary: 'ค้นหาห้องเรียนที่เปิดใช้งาน', security: bearer, parameters: [{ name: 'search', in: 'query', schema: { type: 'string' } }, { name: 'building', in: 'query', schema: { type: 'string' } }, { name: 'minCapacity', in: 'query', schema: { type: 'integer' } }, { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }, { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } }], responses: { 200: { description: 'รายการห้องเรียน' } } } },
-    '/api/classrooms/{id}': { get: { tags: ['Classrooms'], summary: 'ดูรายละเอียดห้องเรียน', security: bearer, parameters: [id], responses: { 200: { description: 'ข้อมูลห้องเรียน' }, 404: { $ref: '#/components/responses/NotFound' } } } },
-    '/api/classrooms/{id}/availability': { get: { tags: ['Classrooms'], summary: 'ตรวจสอบห้องว่าง', security: bearer, parameters: [id, { name: 'startAt', in: 'query', required: true, schema: { type: 'string', format: 'date-time' } }, { name: 'endAt', in: 'query', required: true, schema: { type: 'string', format: 'date-time' } }], responses: { 200: { description: 'ผลการตรวจสอบ' }, 400: { $ref: '#/components/responses/BadRequest' } } } },
-    '/api/bookings': { get: { tags: ['Bookings'], summary: 'ดูรายการจองของตัวเอง', security: bearer, parameters: [{ name: 'status', in: 'query', schema: { type: 'string', enum: ['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED', 'COMPLETED'] } }, { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } }, { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } }], responses: { 200: { description: 'รายการจอง' } } }, post: { tags: ['Bookings'], summary: 'สร้างรายการจอง', security: bearer, requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['classroomId', 'purpose', 'startAt', 'endAt'], properties: { classroomId: { type: 'integer' }, purpose: { type: 'string' }, description: { type: 'string' }, startAt: { type: 'string', format: 'date-time' }, endAt: { type: 'string', format: 'date-time' } } } } } }, responses: { 201: { description: 'สร้างรายการจองสำเร็จ' }, 400: { $ref: '#/components/responses/BadRequest' }, 409: { $ref: '#/components/responses/Conflict' } } } },
-    '/api/users/me/bookings': { get: { tags: ['Bookings'], summary: 'ประวัติการจองของตัวเอง', security: bearer, responses: { 200: { description: 'ประวัติการจอง' } } } },
-    '/api/bookings/{id}/cancel': { patch: { tags: ['Bookings'], summary: 'ยกเลิกรายการจอง', security: bearer, parameters: [id], responses: { 200: { description: 'ยกเลิกสำเร็จ' }, 400: { $ref: '#/components/responses/BadRequest' }, 404: { $ref: '#/components/responses/NotFound' } } } },
-    '/api/notifications': { get: { tags: ['Notifications'], summary: 'ดู notifications ของตัวเอง', security: bearer, responses: { 200: { description: 'รายการ notifications' } } } },
-    '/api/notifications/read-all': { patch: { tags: ['Notifications'], summary: 'อ่าน notifications ทั้งหมด', security: bearer, responses: { 200: { description: 'สำเร็จ' } } } },
-    '/api/notifications/{id}/read': { patch: { tags: ['Notifications'], summary: 'อ่าน notification', security: bearer, parameters: [id], responses: { 200: { description: 'สำเร็จ' }, 404: { $ref: '#/components/responses/NotFound' } } } },
-    '/api/admin/dashboard/summary': { get: { tags: ['Admin'], summary: 'Dashboard summary', security: bearer, responses: { 200: { description: 'สรุป dashboard' }, 403: { $ref: '#/components/responses/Forbidden' } } } },
-    '/api/admin/dashboard/recent-bookings': { get: { tags: ['Admin'], summary: 'รายการจองล่าสุด', security: bearer, parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', default: 10, maximum: 100 } }], responses: { 200: { description: 'รายการจองล่าสุด' } } } },
-    '/api/admin/classrooms': { get: { tags: ['Admin'], summary: 'ดูห้องเรียนทั้งหมด', security: bearer, responses: { 200: { description: 'รายการห้องเรียน' } } }, post: { tags: ['Admin'], summary: 'สร้างห้องเรียน', security: bearer, requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Classroom' } } } }, responses: { 201: { description: 'สร้างสำเร็จ' }, 403: { $ref: '#/components/responses/Forbidden' } } } },
-    '/api/admin/classrooms/{id}/status': { patch: { tags: ['Admin'], summary: 'เปลี่ยนสถานะห้องเรียน', security: bearer, parameters: [id], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['AVAILABLE', 'INACTIVE'] } } } } } }, responses: { 200: { description: 'แก้ไขสำเร็จ' }, 403: { $ref: '#/components/responses/Forbidden' } } } },
-    '/api/admin/bookings': { get: { tags: ['Admin'], summary: 'ดูรายการจองทั้งหมด', security: bearer, responses: { 200: { description: 'รายการจองทั้งหมด' }, 403: { $ref: '#/components/responses/Forbidden' } } } },
-    '/api/admin/bookings/{id}/approve': { patch: { tags: ['Admin'], summary: 'อนุมัติการจอง', security: bearer, parameters: [id], responses: { 200: { description: 'อนุมัติสำเร็จ' }, 409: { $ref: '#/components/responses/Conflict' } } } },
-    '/api/admin/bookings/{id}/reject': { patch: { tags: ['Admin'], summary: 'ปฏิเสธการจอง', security: bearer, parameters: [id], requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { adminNote: { type: 'string' } } } } } }, responses: { 200: { description: 'ปฏิเสธสำเร็จ' } } } },
-    '/api/admin/users': { get: { tags: ['Admin'], summary: 'ดูผู้ใช้งานทั้งหมด', security: bearer, responses: { 200: { description: 'รายการผู้ใช้งาน' } } } },
-    '/api/admin/users/{id}/status': { patch: { tags: ['Admin'], summary: 'เปลี่ยนสถานะผู้ใช้', security: bearer, parameters: [id], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } } } } } }, responses: { 200: { description: 'แก้ไขสำเร็จ' } } } },
-    '/api/admin/reports/summary': { get: { tags: ['Admin'], summary: 'รายงานสรุป', security: bearer, responses: { 200: { description: 'รายงานสรุป' } } } },
-    '/api/admin/audit-logs': { get: { tags: ['Admin'], summary: 'ดู audit logs', security: bearer, responses: { 200: { description: 'รายการ audit logs' } } } },
-    ...extraPaths
-  }
+    "/health": {
+      get: {
+        tags: ["Health"],
+        summary: "ตรวจสอบสถานะ API",
+        responses: { 200: { description: "Healthy" } },
+      },
+    },
+    "/api/auth/register": {
+      post: {
+        tags: ["Auth"],
+        summary: "สมัครสมาชิก Student/Teacher",
+        requestBody: jsonBody({
+          type: "object",
+          required: ["name", "email", "password"],
+          properties: {
+            name: { type: "string" },
+            email: { type: "string", format: "email" },
+            password: { type: "string", minLength: 8 },
+            role: {
+              type: "string",
+              enum: ["STUDENT", "TEACHER"],
+              default: "STUDENT",
+            },
+          },
+        }),
+        responses: { 201: { description: "Registered" }, ...success() },
+      },
+    },
+    "/api/auth/login": {
+      post: {
+        tags: ["Auth"],
+        summary: "เข้าสู่ระบบและรับ JWT",
+        requestBody: jsonBody({
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: { type: "string", format: "email" },
+            password: { type: "string" },
+          },
+        }),
+        responses: success("Logged in"),
+      },
+    },
+    "/api/auth/me": {
+      get: {
+        tags: ["Auth"],
+        summary: "ข้อมูลผู้ใช้จาก token",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/users/me": {
+      get: {
+        tags: ["Users"],
+        summary: "โปรไฟล์ตัวเอง",
+        security: bearer,
+        responses: success(),
+      },
+      patch: {
+        tags: ["Users"],
+        summary: "แก้ไขโปรไฟล์",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            email: { type: "string", format: "email" },
+          },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/users/me/password": {
+      patch: {
+        tags: ["Users"],
+        summary: "เปลี่ยนรหัสผ่าน",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          required: ["currentPassword", "newPassword"],
+          properties: {
+            currentPassword: { type: "string" },
+            newPassword: { type: "string", minLength: 8 },
+          },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/users/me/bookings": {
+      get: {
+        tags: ["Users"],
+        summary: "ประวัติการจองของตัวเอง",
+        security: bearer,
+        parameters: [
+          page,
+          limit,
+          {
+            name: "status",
+            in: "query",
+            schema: { $ref: "#/components/schemas/Booking/properties/status" },
+          },
+        ],
+        responses: success(),
+      },
+    },
+    "/api/classrooms": {
+      get: {
+        tags: ["Classrooms"],
+        summary: "ค้นหาและดูห้องทั้งหมด",
+        security: bearer,
+        parameters: [
+          page,
+          limit,
+          { name: "search", in: "query", schema: { type: "string" } },
+          { name: "building", in: "query", schema: { type: "string" } },
+          { name: "minCapacity", in: "query", schema: { type: "integer" } },
+          {
+            name: "equipment",
+            in: "query",
+            description: "comma-separated หรือส่งซ้ำได้",
+            schema: { type: "string" },
+          },
+        ],
+        responses: success(),
+      },
+    },
+    "/api/classrooms/availability": {
+      get: {
+        tags: ["Classrooms"],
+        summary: "ตรวจห้องว่างทั้งหมดหรือหลายห้อง",
+        security: bearer,
+        parameters: [
+          ...dateRange,
+          {
+            name: "classroomIds",
+            in: "query",
+            description: "เช่น 1,2,3",
+            schema: { type: "string" },
+          },
+          {
+            name: "availableOnly",
+            in: "query",
+            schema: { type: "boolean", default: false },
+          },
+          { name: "building", in: "query", schema: { type: "string" } },
+          { name: "minCapacity", in: "query", schema: { type: "integer" } },
+          { name: "equipment", in: "query", schema: { type: "string" } },
+        ],
+        responses: success(),
+      },
+    },
+    "/api/classrooms/schedule": {
+      get: {
+        tags: ["Classrooms"],
+        summary: "ตารางการใช้ห้องทั้งหมดหรือหลายห้อง สูงสุด 31 วัน",
+        security: bearer,
+        parameters: [
+          ...dateRange,
+          {
+            name: "classroomIds",
+            in: "query",
+            schema: { type: "string" },
+            example: "1,2,3",
+          },
+        ],
+        responses: success(),
+      },
+    },
+    "/api/classrooms/{id}": {
+      get: {
+        tags: ["Classrooms"],
+        summary: "รายละเอียดห้อง",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/classrooms/{id}/availability": {
+      get: {
+        tags: ["Classrooms"],
+        summary: "ตรวจห้องว่างรายห้อง",
+        security: bearer,
+        parameters: [id, ...dateRange],
+        responses: success(),
+      },
+    },
+    "/api/bookings": {
+      get: {
+        tags: ["Bookings"],
+        summary: "รายการจอง; STAFF/ADMIN ใช้ scope=all ได้",
+        security: bearer,
+        parameters: [
+          page,
+          limit,
+          { name: "status", in: "query", schema: { type: "string" } },
+          {
+            name: "scope",
+            in: "query",
+            schema: { type: "string", enum: ["mine", "all"], default: "mine" },
+          },
+          {
+            name: "userId",
+            in: "query",
+            schema: { type: "integer", format: "int64" },
+          },
+          {
+            name: "startDate",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+          },
+          {
+            name: "endDate",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+          },
+        ],
+        responses: success(),
+      },
+      post: {
+        tags: ["Bookings"],
+        summary: "สร้าง Booking และตรวจ conflict ซ้ำใน transaction",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/BookingInput" }),
+        responses: { 201: { description: "Booking created" }, ...success() },
+      },
+    },
+    "/api/bookings/{id}": {
+      get: {
+        tags: ["Bookings"],
+        summary: "รายละเอียด Booking",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+      patch: {
+        tags: ["Bookings"],
+        summary: "แก้ไข Booking สถานะ PENDING",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody(
+          { $ref: "#/components/schemas/BookingInput" },
+          false,
+        ),
+        responses: success(),
+      },
+      delete: {
+        tags: ["Bookings"],
+        summary: "ยกเลิก Booking แบบ soft delete",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody(
+          { type: "object", properties: { reason: { type: "string" } } },
+          false,
+        ),
+        responses: success(),
+      },
+    },
+    "/api/bookings/{id}/cancel": {
+      patch: {
+        tags: ["Bookings"],
+        summary: "ยกเลิกก่อนเวลาเริ่มตาม BOOKING_CANCEL_MINUTES",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody(
+          { type: "object", properties: { reason: { type: "string" } } },
+          false,
+        ),
+        responses: success(),
+      },
+    },
+    "/api/bookings/{id}/check-in": {
+      post: {
+        tags: ["Bookings"],
+        summary: "Check-in Booking เป็น IN_USE ภายในช่วงเวลาที่กำหนด",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/notifications": {
+      get: {
+        tags: ["Notifications"],
+        summary: "Notification Center",
+        security: bearer,
+        parameters: [
+          page,
+          limit,
+          { name: "isRead", in: "query", schema: { type: "boolean" } },
+        ],
+        responses: success(),
+      },
+    },
+    "/api/notifications/unread-count": {
+      get: {
+        tags: ["Notifications"],
+        summary: "จำนวนที่ยังไม่อ่าน",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/notifications/read-all": {
+      patch: {
+        tags: ["Notifications"],
+        summary: "อ่านทั้งหมด",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/notifications/{id}/read": {
+      patch: {
+        tags: ["Notifications"],
+        summary: "อ่านหนึ่งรายการ",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/dashboard/summary": {
+      get: {
+        tags: ["Admin"],
+        summary: "Dashboard และจำนวนผู้ใช้งาน/Booking ทุกสถานะ",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/admin/dashboard/recent-bookings": {
+      get: {
+        tags: ["Admin"],
+        summary: "Booking ล่าสุด",
+        security: bearer,
+        parameters: [limit],
+        responses: success(),
+      },
+    },
+    "/api/admin/classrooms": {
+      get: {
+        tags: ["Admin"],
+        summary: "ห้องทั้งหมดรวม inactive",
+        security: bearer,
+        parameters: [page, limit],
+        responses: success(),
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "สร้างห้อง",
+        security: bearer,
+        requestBody: jsonBody({ $ref: "#/components/schemas/Classroom" }),
+        responses: { 201: { description: "Created" }, ...success() },
+      },
+    },
+    "/api/admin/classrooms/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "รายละเอียดและประวัติห้อง",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+      patch: {
+        tags: ["Admin"],
+        summary: "แก้ไขห้อง",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody(
+          { $ref: "#/components/schemas/Classroom" },
+          false,
+        ),
+        responses: success(),
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "ปิดใช้งานห้อง",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/classrooms/{id}/status": {
+      patch: {
+        tags: ["Admin"],
+        summary: "เปลี่ยนสถานะห้อง",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["status"],
+          properties: {
+            status: { type: "string", enum: ["AVAILABLE", "INACTIVE"] },
+          },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings": {
+      get: {
+        tags: ["Admin"],
+        summary: "Booking ทั้งหมดพร้อม filter",
+        security: bearer,
+        parameters: [
+          page,
+          limit,
+          { name: "status", in: "query", schema: { type: "string" } },
+          { name: "classroomId", in: "query", schema: { type: "integer" } },
+          { name: "userId", in: "query", schema: { type: "integer" } },
+          { name: "search", in: "query", schema: { type: "string" } },
+        ],
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "รายละเอียดและ Audit history",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}/approve": {
+      patch: {
+        tags: ["Admin"],
+        summary: "PENDING → CONFIRMED",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}/reject": {
+      patch: {
+        tags: ["Admin"],
+        summary: "PENDING → REJECTED โดยบังคับเหตุผล",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["adminNote"],
+          properties: { adminNote: { type: "string", minLength: 1 } },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}/cancel": {
+      patch: {
+        tags: ["Admin"],
+        summary: "Admin ยกเลิกและบังคับเหตุผล",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["reason"],
+          properties: { reason: { type: "string", minLength: 1 } },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}/start": {
+      patch: {
+        tags: ["Admin"],
+        summary: "CONFIRMED → IN_USE",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}/complete": {
+      patch: {
+        tags: ["Admin"],
+        summary: "IN_USE → COMPLETED",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/bookings/{id}/no-show": {
+      patch: {
+        tags: ["Admin"],
+        summary: "CONFIRMED → NO_SHOW",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody(
+          { type: "object", properties: { reason: { type: "string" } } },
+          false,
+        ),
+        responses: success(),
+      },
+    },
+    "/api/admin/users": {
+      get: {
+        tags: ["Admin"],
+        summary: "ผู้ใช้ทั้งหมด",
+        security: bearer,
+        parameters: [page, limit],
+        responses: success(),
+      },
+      post: {
+        tags: ["Admin"],
+        summary: "สร้าง User/Student/Teacher/Staff/Admin",
+        security: bearer,
+        requestBody: jsonBody({
+          type: "object",
+          required: ["name", "email", "password"],
+          properties: {
+            name: { type: "string" },
+            email: { type: "string", format: "email" },
+            password: { type: "string", minLength: 8 },
+            role: {
+              type: "string",
+              enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+            },
+            status: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
+          },
+        }),
+        responses: { 201: { description: "Created" }, ...success() },
+      },
+    },
+    "/api/admin/users/{id}": {
+      get: {
+        tags: ["Admin"],
+        summary: "รายละเอียดและประวัติ User",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+      patch: {
+        tags: ["Admin"],
+        summary: "แก้ไข User",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            email: { type: "string", format: "email" },
+          },
+        }),
+        responses: success(),
+      },
+      delete: {
+        tags: ["Admin"],
+        summary: "ปิดใช้งาน User",
+        security: bearer,
+        parameters: [id],
+        responses: success(),
+      },
+    },
+    "/api/admin/users/{id}/role": {
+      patch: {
+        tags: ["Admin"],
+        summary: "เปลี่ยน Role",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["role"],
+          properties: {
+            role: {
+              type: "string",
+              enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+            },
+          },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/admin/users/{id}/status": {
+      patch: {
+        tags: ["Admin"],
+        summary: "เปิด/ปิด User",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["status"],
+          properties: {
+            status: { type: "string", enum: ["ACTIVE", "INACTIVE"] },
+          },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/admin/users/{id}/reset-password": {
+      patch: {
+        tags: ["Admin"],
+        summary: "รีเซ็ตรหัสผ่าน",
+        security: bearer,
+        parameters: [id],
+        requestBody: jsonBody({
+          type: "object",
+          required: ["newPassword"],
+          properties: { newPassword: { type: "string", minLength: 8 } },
+        }),
+        responses: success(),
+      },
+    },
+    "/api/admin/reports/summary": {
+      get: {
+        tags: ["Reports"],
+        summary: "รายงานสรุป",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/admin/reports/bookings": {
+      get: {
+        tags: ["Reports"],
+        summary: "รายงาน Booking",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/admin/reports/classrooms": {
+      get: {
+        tags: ["Reports"],
+        summary: "สถิติการใช้ห้อง",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/admin/reports/users": {
+      get: {
+        tags: ["Reports"],
+        summary: "สถิติผู้ใช้",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/admin/reports/export": {
+      get: {
+        tags: ["Reports"],
+        summary: "Export CSV",
+        security: bearer,
+        responses: {
+          200: {
+            description: "CSV",
+            content: { "text/csv": { schema: { type: "string" } } },
+          },
+        },
+      },
+    },
+    "/api/admin/audit-logs": {
+      get: {
+        tags: ["Admin"],
+        summary: "Audit logs",
+        security: bearer,
+        parameters: [page, limit],
+        responses: success(),
+      },
+    },
+    "/api/admin/uploads/images": {
+      post: {
+        tags: ["Uploads"],
+        summary: "อัปโหลด JPEG/PNG/WebP/GIF สูงสุด 5 MB",
+        security: bearer,
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["image"],
+                properties: { image: { type: "string", format: "binary" } },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: "Uploaded" }, ...success() },
+      },
+    },
+    "/api/admin/uploads/images/{key}": {
+      delete: {
+        tags: ["Uploads"],
+        summary: "ลบรูป local",
+        security: bearer,
+        parameters: [
+          {
+            name: "key",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+          },
+        ],
+        responses: success(),
+      },
+    },
+  },
 };

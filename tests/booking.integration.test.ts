@@ -1,39 +1,199 @@
-import request from 'supertest';
-import jwt from 'jsonwebtoken';
-import { app } from '../src/app';
-import { prisma } from '../src/utils/prisma';
-import { env } from '../src/config/env';
+import request from "supertest";
+import jwt from "jsonwebtoken";
+import { app } from "../src/app";
+import { prisma } from "../src/utils/prisma";
+import { env } from "../src/config/env";
 
-const token = () => jwt.sign({ id: '10', role: 'STUDENT', email: 'test@test.local' }, env.JWT_SECRET);
-const payload = { classroomId: '3', purpose: 'API test', startAt: '2099-01-01T09:00:00.000Z', endAt: '2099-01-01T10:00:00.000Z' };
+const token = () =>
+  jwt.sign(
+    { id: "10", role: "STUDENT", email: "test@test.local" },
+    env.JWT_SECRET,
+  );
+const startAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+const payload = {
+  classroomId: "3",
+  purpose: "API test",
+  attendeeCount: 20,
+  requestedEquipment: ["Projector"],
+  startAt: startAt.toISOString(),
+  endAt: endAt.toISOString(),
+};
 
-describe('Booking API', () => {
+describe("Booking API", () => {
   beforeEach(() => {
-    jest.spyOn(prisma, '$transaction').mockImplementation((async (callback: (client: typeof prisma) => unknown) => callback(prisma)) as never);
+    jest
+      .spyOn(prisma.user, "findUnique")
+      .mockResolvedValue({
+        id: 10n,
+        role: "STUDENT",
+        email: "test@test.local",
+        status: "ACTIVE",
+      } as never);
+    jest.spyOn(prisma.user, "findMany").mockResolvedValue([] as never);
+    jest
+      .spyOn(prisma.notification, "create")
+      .mockResolvedValue({ id: 900n } as never);
+    jest
+      .spyOn(prisma.auditLog, "create")
+      .mockResolvedValue({ id: 901n } as never);
+    jest
+      .spyOn(prisma, "$transaction")
+      .mockImplementation((async (
+        callback: (client: typeof prisma) => unknown,
+      ) => callback(prisma)) as never);
   });
   afterEach(() => jest.restoreAllMocks());
 
-  it('creates a pending booking', async () => {
-    jest.spyOn(prisma.classroom, 'findUnique').mockResolvedValue({ id: 3n, status: 'AVAILABLE' } as never);
-    jest.spyOn(prisma.booking, 'findFirst').mockResolvedValue(null);
-    jest.spyOn(prisma.booking, 'create').mockResolvedValue({ id: 201n, bookingCode: 'BK-test', userId: 10n, classroomId: 3n, purpose: payload.purpose, description: null, startAt: new Date(payload.startAt), endAt: new Date(payload.endAt), status: 'PENDING', adminNote: null, approvedBy: null, approvedAt: null, createdAt: new Date(), updatedAt: new Date() } as never);
-    const response = await request(app).post('/api/bookings').set('Authorization', 'Bearer ' + token()).send(payload);
+  it("creates a pending booking", async () => {
+    jest
+      .spyOn(prisma.classroom, "findUnique")
+      .mockResolvedValue({
+        id: 3n,
+        status: "AVAILABLE",
+        capacity: 40,
+        equipment: ["Projector"],
+      } as never);
+    jest.spyOn(prisma.booking, "findFirst").mockResolvedValue(null);
+    jest
+      .spyOn(prisma.booking, "create")
+      .mockResolvedValue({
+        id: 201n,
+        bookingCode: "BK-test",
+        userId: 10n,
+        classroomId: 3n,
+        purpose: payload.purpose,
+        description: null,
+        startAt: new Date(payload.startAt),
+        endAt: new Date(payload.endAt),
+        status: "PENDING",
+        adminNote: null,
+        approvedBy: null,
+        approvedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as never);
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send(payload);
     expect(response.status).toBe(201);
-    expect(response.body.data.status).toBe('PENDING');
+    expect(response.body.data.status).toBe("PENDING");
   });
-  it('returns 409 for a conflicting time', async () => {
-    jest.spyOn(prisma.classroom, 'findUnique').mockResolvedValue({ id: 3n, status: 'AVAILABLE' } as never);
-    jest.spyOn(prisma.booking, 'findFirst').mockResolvedValue({ id: 200n } as never);
-    const response = await request(app).post('/api/bookings').set('Authorization', 'Bearer ' + token()).send(payload);
+  it("returns 409 for a conflicting time", async () => {
+    jest
+      .spyOn(prisma.classroom, "findUnique")
+      .mockResolvedValue({
+        id: 3n,
+        status: "AVAILABLE",
+        capacity: 40,
+        equipment: ["Projector"],
+      } as never);
+    jest
+      .spyOn(prisma.booking, "findFirst")
+      .mockResolvedValue({ id: 200n } as never);
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send(payload);
     expect(response.status).toBe(409);
   });
-  it('returns 400 for an inactive classroom', async () => {
-    jest.spyOn(prisma.classroom, 'findUnique').mockResolvedValue({ id: 3n, status: 'INACTIVE' } as never);
-    const response = await request(app).post('/api/bookings').set('Authorization', 'Bearer ' + token()).send(payload);
+  it("returns 400 for an inactive classroom", async () => {
+    jest
+      .spyOn(prisma.classroom, "findUnique")
+      .mockResolvedValue({
+        id: 3n,
+        status: "INACTIVE",
+        capacity: 40,
+        equipment: ["Projector"],
+      } as never);
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send(payload);
     expect(response.status).toBe(400);
   });
-  it('returns 400 for an invalid time range', async () => {
-    const response = await request(app).post('/api/bookings').set('Authorization', 'Bearer ' + token()).send({ ...payload, startAt: '2099-01-01T10:00:00.000Z', endAt: '2099-01-01T09:00:00.000Z' });
+  it("returns 400 when attendee count exceeds classroom capacity", async () => {
+    jest
+      .spyOn(prisma.classroom, "findUnique")
+      .mockResolvedValue({
+        id: 3n,
+        status: "AVAILABLE",
+        capacity: 10,
+        equipment: ["Projector"],
+      } as never);
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send({ ...payload, attendeeCount: 11 });
     expect(response.status).toBe(400);
+  });
+  it("returns 400 for an invalid time range", async () => {
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send({
+        ...payload,
+        startAt: endAt.toISOString(),
+        endAt: startAt.toISOString(),
+      });
+    expect(response.status).toBe(400);
+  });
+  it("returns 400 when requested equipment is unavailable", async () => {
+    jest
+      .spyOn(prisma.classroom, "findUnique")
+      .mockResolvedValue({
+        id: 3n,
+        status: "AVAILABLE",
+        capacity: 40,
+        equipment: ["Whiteboard"],
+      } as never);
+    const response = await request(app)
+      .post("/api/bookings")
+      .set("Authorization", "Bearer " + token())
+      .send(payload);
+    expect(response.status).toBe(400);
+  });
+  it("enforces the cancellation cutoff", async () => {
+    jest
+      .spyOn(prisma.booking, "findUnique")
+      .mockResolvedValue({
+        id: 201n,
+        userId: 10n,
+        bookingCode: "BK-CANCEL",
+        status: "CONFIRMED",
+        startAt: new Date(Date.now() + 30 * 60 * 1000),
+      } as never);
+    const response = await request(app)
+      .patch("/api/bookings/201/cancel")
+      .set("Authorization", "Bearer " + token())
+      .send({ reason: "Changed plan" });
+    expect(response.status).toBe(409);
+  });
+  it("checks in a confirmed booking inside the allowed window", async () => {
+    const booking = {
+      id: 202n,
+      userId: 10n,
+      bookingCode: "BK-CHECKIN",
+      status: "CONFIRMED",
+      startAt: new Date(Date.now() + 10 * 60 * 1000),
+      endAt: new Date(Date.now() + 70 * 60 * 1000),
+    };
+    jest
+      .spyOn(prisma.booking, "findUnique")
+      .mockResolvedValue(booking as never);
+    jest
+      .spyOn(prisma.booking, "update")
+      .mockResolvedValue({
+        ...booking,
+        status: "IN_USE",
+        checkedInAt: new Date(),
+      } as never);
+    const response = await request(app)
+      .post("/api/bookings/202/check-in")
+      .set("Authorization", "Bearer " + token())
+      .send();
+    expect(response.status).toBe(200);
+    expect(response.body.data.status).toBe("IN_USE");
   });
 });

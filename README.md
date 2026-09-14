@@ -3,6 +3,7 @@
 Node.js + TypeScript + Express + MySQL + Prisma REST API สำหรับระบบจองห้องเรียน
 
 ## เริ่มใช้งานด้วย SQLite (Local)
+
 SQLite ใช้ workflow แยกสำหรับ local โดยไม่กระทบ schema MySQL:
 
 1. คัดลอก `.env.sqlite.example` เป็น `.env`
@@ -15,15 +16,17 @@ SQLite ใช้ workflow แยกสำหรับ local โดยไม่�
 ฐานข้อมูลจะถูกสร้างที่ `prisma/dev.db`
 
 ## เริ่มใช้งานด้วย MySQL
+
 1. คัดลอก `.env.example` เป็น `.env` และตั้งค่า secrets/credentials
 2. รัน `npm install`
-3. รัน MySQL แล้วใช้ `npm run prisma:migrate` และ `npm run prisma:seed`
+3. Development ใช้ `npm run prisma:migrate`; production ใช้ `npm run prisma:deploy`; ฐานข้อมูลใหม่ใช้ `npm run prisma:seed`
 4. ใช้ `npm run dev` หรือ `npm run build && npm start`
 
-Swagger เปิดที่ `http://localhost:3000/api-docs` และ health ของ API อยู่ภายใต้ `/api` ตามรายการใน source modules
+Swagger เปิดที่ `http://localhost:3000/api-docs`, health check อยู่ที่ `http://localhost:3000/health` และ business APIs อยู่ภายใต้ `/api`
 ดู Database ER Diagram แบบ Mermaid ได้ที่ `docs/db-erd.md`
 
 ## Docker
+
 `docker compose up --build`
 
 ทุก response ใช้ `{ success, message, data, meta }`; error ใช้ `{ success:false, message, errors }`. Booking ที่ชนกันคืน 409 และใช้ transaction ตอนอนุมัติพร้อม audit/notification.
@@ -66,7 +69,17 @@ Role ที่รองรับคือ STUDENT (นักศึกษา) แ
 
 ### 4. หน้าตารางการใช้ห้อง
 
-    GET /api/classrooms/{classroomId}/availability?startAt=2099-01-01T09:00:00.000Z&endAt=2099-01-01T10:00:00.000Z
+ตรวจหลายห้องพร้อมกันและเลือกให้คืนเฉพาะห้องว่างได้:
+
+    GET /api/classrooms/availability?startAt=2026-10-01T09:00:00.000Z&endAt=2026-10-01T10:00:00.000Z&classroomIds=3,4,5&availableOnly=true
+
+โหลดตารางของห้องที่เลือก สูงสุดครั้งละ 31 วัน:
+
+    GET /api/classrooms/schedule?startAt=2026-10-01T00:00:00.000Z&endAt=2026-10-08T00:00:00.000Z&classroomIds=3,4,5
+
+ยังรองรับการตรวจทีละห้อง:
+
+    GET /api/classrooms/{classroomId}/availability?startAt=2026-10-01T09:00:00.000Z&endAt=2026-10-01T10:00:00.000Z
 
 ตรวจสอบ data.available หากเป็น false แปลว่าช่วงเวลานี้ถูกจองแล้ว
 
@@ -74,7 +87,9 @@ Role ที่รองรับคือ STUDENT (นักศึกษา) แ
 
     POST /api/bookings
 
-Request ต้องมี classroomId, purpose, startAt และ endAt โดย startAt ต้องน้อยกว่า endAt และต้องไม่ซ้ำกับรายการเดิม หากซ้ำคืน HTTP 409
+Request ต้องมี classroomId, purpose, attendeeCount, startAt และ endAt และส่ง `requestedEquipment` เป็นรายการอุปกรณ์ที่เลือกได้ ระบบตรวจความจุ อุปกรณ์ ระยะเวลาสูงสุด ระยะเวลาจองล่วงหน้า และเวลาชนก่อนบันทึก หากซ้ำคืน HTTP 409
+
+STAFF/ADMIN สามารถส่ง `userId` เพื่อจองแทนผู้ใช้อื่น และดูรายการทั้งหมดด้วย `GET /api/bookings?scope=all`
 
 ### 6. หน้ายืนยันการจอง
 
@@ -93,7 +108,11 @@ Request ต้องมี classroomId, purpose, startAt และ endAt โด�
 
     PATCH /api/bookings/{bookingId}/cancel
 
-สถานะที่ควรแสดงคือ PENDING, CONFIRMED, REJECTED, CANCELLED และ COMPLETED
+Check-in เมื่อถึงช่วงเวลาใช้งาน:
+
+    POST /api/bookings/{bookingId}/check-in
+
+สถานะทั้งหมดคือ PENDING, CONFIRMED, IN_USE, COMPLETED, REJECTED, CANCELLED และ NO_SHOW
 
 ## Admin Frontend API Path Guide
 
@@ -116,6 +135,7 @@ Request ต้องมี classroomId, purpose, startAt และ endAt โด�
 - จำนวนการจองทั้งหมด
 - จำนวนรายการรออนุมัติ
 - จำนวนรายการ CONFIRMED
+- จำนวนรายการ IN_USE, COMPLETED และ NO_SHOW
 - จำนวนรายการ CANCELLED
 - ห้องที่ถูกจองบ่อยที่สุด
 
@@ -177,11 +197,22 @@ Request:
 
 เมื่ออนุมัติ ระบบจะตรวจสอบเวลาชน, บันทึกผู้อนุมัติ, สร้าง Notification และ Audit Log
 
+ควบคุมวงจรการใช้งาน:
+
+    PATCH /api/admin/bookings/{bookingId}/start
+    PATCH /api/admin/bookings/{bookingId}/complete
+    PATCH /api/admin/bookings/{bookingId}/no-show
+    PATCH /api/admin/bookings/{bookingId}/cancel
+
 ### 11. หน้าจัดการผู้ใช้งาน
 
 ดูผู้ใช้งานทั้งหมด:
 
     GET /api/admin/users
+
+สร้างผู้ใช้ รวม STAFF และ ADMIN:
+
+    POST /api/admin/users
 
 เปลี่ยนสถานะผู้ใช้งาน:
 
@@ -196,7 +227,7 @@ Request:
 
 Role และ Status ที่รองรับ:
 
-- Role: USER, STUDENT, TEACHER, ADMIN
+- Role: USER, STUDENT, TEACHER, STAFF, ADMIN
 - Status: ACTIVE, INACTIVE
 
 ### 12. หน้ารายงานและสถิติ
@@ -241,3 +272,29 @@ Audit Logs สำหรับตรวจสอบการเปลี่ยน
     DELETE /api/admin/uploads/images/{key}
 
 Storage abstraction อยู่ที่ src/services/image-storage.ts เมื่อต้องการใช้ Cloudflare R2 ให้สร้าง R2ImageStorage ที่ implements ImageStorage แล้วเลือก provider จาก STORAGE_DRIVER โดยไม่ต้องเปลี่ยน Upload Route
+
+## In-App Notifications and Booking Reminders
+
+รายการแจ้งเตือนของผู้ใช้:
+
+    GET /api/notifications?page=1&limit=20
+    GET /api/notifications?isRead=false
+    GET /api/notifications/unread-count
+    PATCH /api/notifications/{id}/read
+    PATCH /api/notifications/read-all
+
+ระบบสร้าง In-App Notification เมื่อสร้าง Booking, แก้ไข, ยกเลิก, อนุมัติ, ปฏิเสธ และใกล้ถึงเวลาใช้งาน
+
+ตั้งเวลาแจ้งเตือนผ่าน environment:
+
+    BOOKING_REMINDER_MINUTES=60
+    REMINDER_POLL_INTERVAL_MS=60000
+    BOOKING_CANCEL_MINUTES=120
+    BOOKING_MAX_DURATION_HOURS=8
+    BOOKING_MAX_ADVANCE_DAYS=90
+    BOOKING_CHECKIN_EARLY_MINUTES=30
+    BOOKING_CHECKIN_LATE_MINUTES=30
+
+Worker เริ่มพร้อม Backend โดยแจ้งเตือน Booking สถานะ CONFIRMED แบบไม่สร้างซ้ำ, เปลี่ยน CONFIRMED ที่ไม่ check-in เป็น NO_SHOW หลังพ้นช่วงเวลา และเปลี่ยน IN_USE เป็น COMPLETED เมื่อสิ้นสุดเวลา
+
+Middleware ตรวจ Role และสถานะผู้ใช้กับฐานข้อมูลทุก request ดังนั้น token เก่าจะใช้ต่อไม่ได้ทันทีเมื่อผู้ใช้ถูกปิดบัญชีหรือถูกเปลี่ยน Role
