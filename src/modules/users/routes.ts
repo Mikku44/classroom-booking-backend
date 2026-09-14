@@ -1,0 +1,27 @@
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import { BookingStatus } from '@prisma/client';
+import { z } from 'zod';
+import { authenticate } from '../../middlewares/auth';
+import { AppError } from '../../middlewares/error';
+import { prisma, jsonSafe } from '../../utils/prisma';
+import { ok } from '../../utils/response';
+
+const r = Router();
+r.use(authenticate);
+const publicUser = { id: true, name: true, email: true, role: true, status: true, createdAt: true } as const;
+r.get('/me', async (req, res, next) => { try { const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: publicUser }); if (!user) throw new AppError(404, 'User not found'); ok(res, jsonSafe(user)); } catch (error) { next(error); } });
+r.patch('/me', async (req, res, next) => { try { const input = z.object({ name: z.string().min(1).max(150), email: z.string().email() }).partial().parse(req.body); ok(res, jsonSafe(await prisma.user.update({ where: { id: req.user!.id }, data: input, select: publicUser })), 'Profile updated'); } catch (error) { next(error); } });
+r.patch('/me/password', async (req, res, next) => { try { const input = z.object({ currentPassword: z.string(), newPassword: z.string().min(8) }).parse(req.body); const user = await prisma.user.findUnique({ where: { id: req.user!.id } }); if (!user || !(await bcrypt.compare(input.currentPassword, user.passwordHash))) throw new AppError(400, 'Current password is incorrect'); await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(input.newPassword, 12) } }); ok(res, null, 'Password changed'); } catch (error) { next(error); } });
+r.get('/me/bookings', async (req, res, next) => {
+  try {
+    const q = z.object({ status: z.nativeEnum(BookingStatus).optional(), page: z.coerce.number().int().positive().default(1), limit: z.coerce.number().int().min(1).max(100).default(20) }).parse(req.query);
+    const where = { userId: req.user!.id, ...(q.status ? { status: q.status } : {}) };
+    const [data, total] = await Promise.all([
+      prisma.booking.findMany({ where, skip: (q.page - 1) * q.limit, take: q.limit, orderBy: { createdAt: 'desc' }, include: { classroom: true } }),
+      prisma.booking.count({ where })
+    ]);
+    ok(res, jsonSafe(data), 'Success', { page: q.page, limit: q.limit, total });
+  } catch (error) { next(error); }
+});
+export default r;

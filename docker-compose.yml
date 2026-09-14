@@ -1,0 +1,14 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: classroom_booking
+    ports: ['3306:3306']
+    volumes: [mysql_data:/var/lib/mysql]
+  backend:
+    build: .
+    ports: ['3000:3000']
+    env_file: .env
+    depends_on: [mysql]
+volumes: {mysql_data: {}}

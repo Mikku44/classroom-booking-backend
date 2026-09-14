@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "mysql"
+  url = env("DATABASE_URL")
+}
+enum Role {
+  USER
+  STUDENT
+  TEACHER
+  ADMIN
+}
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+enum ClassroomStatus {
+  AVAILABLE
+  INACTIVE
+}
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+  COMPLETED
+}
+model User {
+  id BigInt @id @default(autoincrement())
+  name String @db.VarChar(150)
+  email String @unique @db.VarChar(255)
+  passwordHash String @db.VarChar(255)
+  role Role @default(USER)
+  status UserStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings Booking[] @relation("BookingUser")
+  approvedBookings Booking[] @relation("BookingApprover")
+  notifications Notification[]
+  auditLogs AuditLog[]
+}
+model Classroom {
+  id BigInt @id @default(autoincrement())
+  name String @db.VarChar(100)
+  building String @db.VarChar(100)
+  floor String @db.VarChar(50)
+  capacity Int
+  equipment Json?
+  imageUrl String? @db.VarChar(500)
+  status ClassroomStatus @default(AVAILABLE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bookings Booking[]
+}
+model Booking {
+  id BigInt @id @default(autoincrement())
+  bookingCode String @unique @db.VarChar(30)
+  userId BigInt
+  classroomId BigInt
+  purpose String @db.VarChar(255)
+  description String? @db.Text
+  startAt DateTime
+  endAt DateTime
+  status BookingStatus @default(PENDING)
+  adminNote String? @db.Text
+  approvedBy BigInt?
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation("BookingUser", fields: [userId], references: [id])
+  classroom Classroom @relation(fields: [classroomId], references: [id])
+  approver User? @relation("BookingApprover", fields: [approvedBy], references: [id])
+  @@index([userId])
+  @@index([classroomId])
+  @@index([status])
+  @@index([startAt])
+  @@index([endAt])
+}
+model AuditLog {
+  id BigInt @id @default(autoincrement())
+  userId BigInt?
+  action String
+  entity String
+  entityId BigInt?
+  oldValue Json?
+  newValue Json?
+  createdAt DateTime @default(now())
+  user User? @relation(fields: [userId], references: [id])
+  @@index([userId])
+}
+model Notification {
+  id BigInt @id @default(autoincrement())
+  userId BigInt
+  title String
+  message String @db.Text
+  type String
+  isRead Boolean @default(false)
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([isRead])
+}

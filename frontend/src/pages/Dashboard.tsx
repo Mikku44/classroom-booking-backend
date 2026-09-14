@@ -1,0 +1,2 @@
+import { useEffect,useState } from 'react'; import { get } from '../api';
+export function DashboardPage(){const [count,setCount]=useState(0);useEffect(()=>{get<unknown[]>('/bookings').then(x=>setCount(x.length)).catch(()=>undefined)},[]);return <><h1>Dashboard</h1><div className="grid"><div className="stat">รายการจองของฉัน<strong>{count}</strong></div><div className="stat">สถานะระบบ<strong>พร้อมใช้งาน</strong></div></div><section className="card"><h2>เริ่มต้นใช้งาน</h2><p>เลือก Classrooms เพื่อค้นหาและจองห้องเรียน</p></section></>}

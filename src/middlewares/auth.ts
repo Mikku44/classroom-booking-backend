@@ -1,0 +1,3 @@
+import {NextFunction,Request,Response} from 'express'; import jwt from 'jsonwebtoken'; import {Role} from '@prisma/client'; import {env} from '../config/env'; import {AppError} from './error';
+export const authenticate=(req:Request,_res:Response,next:NextFunction)=>{try{const h=req.headers.authorization;if(!h?.startsWith('Bearer '))throw new AppError(401,'Unauthorized'); const p=jwt.verify(h.slice(7),env.JWT_SECRET) as {id:string;role:Role;email:string};req.user={id:BigInt(p.id),role:p.role,email:p.email};next()}catch(e){next(e instanceof AppError?e:new AppError(401,'Invalid token'))}};
+export const requireRole=(role:Role)=>(req:Request,_res:Response,next:NextFunction)=>req.user?.role===role?next():next(new AppError(403,'Forbidden'));
