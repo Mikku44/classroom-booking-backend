@@ -1,2 +1,87 @@
-import { useState } from 'react'; import { LoginPage,RegisterPage } from './pages/Auth'; import { Layout } from './components/Layout'; import { DashboardPage } from './pages/Dashboard'; import { ClassroomsPage } from './pages/Classrooms'; import { SchedulePage } from './pages/Schedule'; import { BookingsPage } from './pages/Bookings'; import { ProfilePage } from './pages/Profile'; import { NotificationsPage } from './pages/Notifications'; import { AdminPage } from './pages/Admin'; import type { User } from './types';
-export function App(){const [user,setUser]=useState<User|null>(()=>{const x=localStorage.getItem('user');return x?JSON.parse(x):null}),[page,setPage]=useState(user?'dashboard':'login');const login=(u:User)=>{setUser(u);localStorage.setItem('user',JSON.stringify(u));setPage('dashboard')};const logout=()=>{localStorage.clear();setUser(null);setPage('login')};if(!user)return page==='register'?<RegisterPage onLogin={()=>setPage('login')}/>:<LoginPage onLogin={login} onRegister={()=>setPage('register')}/>;return <Layout user={user} page={page} navigate={setPage} signOut={logout}>{page==='dashboard'&&<DashboardPage/>}{page==='classrooms'&&<ClassroomsPage/>}{page==='schedule'&&<SchedulePage/>}{page==='bookings'&&<BookingsPage/>}{page==='profile'&&<ProfilePage user={user} onUpdate={setUser}/>} {page==='notifications'&&<NotificationsPage/>}{page==='admin'&&user.role==='ADMIN'&&<AdminPage/>}</Layout>}
+import { useEffect, useState } from "react";
+import { get } from "./api";
+import { Layout } from "./components/Layout";
+import { AdminPage } from "./pages/Admin";
+import { LoginPage, RegisterPage } from "./pages/Auth";
+import { BookingsPage } from "./pages/Bookings";
+import { ClassroomsPage } from "./pages/Classrooms";
+import { ConfirmationPage } from "./pages/Confirmation";
+import { DashboardPage } from "./pages/Dashboard";
+import { NotificationsPage } from "./pages/Notifications";
+import { ProfilePage } from "./pages/Profile";
+import { SchedulePage } from "./pages/Schedule";
+import type { Booking, User } from "./types";
+
+export function App() {
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = localStorage.getItem("user");
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [page, setPage] = useState(user ? "dashboard" : "login");
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(
+    null,
+  );
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("lastBooking");
+    setUser(null);
+    setPage("login");
+  };
+  const login = (nextUser: User) => {
+    setUser(nextUser);
+    localStorage.setItem("user", JSON.stringify(nextUser));
+    setPage("dashboard");
+  };
+  const updateUser = (nextUser: User) => {
+    setUser(nextUser);
+    localStorage.setItem("user", JSON.stringify(nextUser));
+  };
+  const bookingCreated = (booking: Booking) => {
+    setConfirmedBooking(booking);
+    localStorage.setItem("lastBooking", JSON.stringify(booking));
+    setPage("confirmation");
+  };
+
+  useEffect(() => {
+    const expire = () => logout();
+    window.addEventListener("auth-expired", expire);
+    if (localStorage.getItem("token")) {
+      get<User>("/auth/me")
+        .then((current) => {
+          setUser(current);
+          localStorage.setItem("user", JSON.stringify(current));
+        })
+        .catch(() => logout());
+    }
+    return () => window.removeEventListener("auth-expired", expire);
+  }, []);
+
+  if (!user) {
+    return page === "register" ? (
+      <RegisterPage onLogin={() => setPage("login")} />
+    ) : (
+      <LoginPage onLogin={login} onRegister={() => setPage("register")} />
+    );
+  }
+
+  return (
+    <Layout user={user} page={page} navigate={setPage} signOut={logout}>
+      {page === "dashboard" && <DashboardPage user={user} navigate={setPage} />}
+      {page === "classrooms" && <ClassroomsPage onBooked={bookingCreated} />}
+      {page === "schedule" && <SchedulePage onBooked={bookingCreated} />}
+      {page === "confirmation" && confirmedBooking && (
+        <ConfirmationPage
+          booking={confirmedBooking}
+          onBack={() => setPage("bookings")}
+          onNew={() => setPage("classrooms")}
+        />
+      )}
+      {page === "bookings" && <BookingsPage user={user} />}
+      {page === "notifications" && <NotificationsPage />}
+      {page === "profile" && <ProfilePage user={user} onUpdate={updateUser} />}
+      {page === "admin" && user.role === "ADMIN" && <AdminPage />}
+    </Layout>
+  );
+}

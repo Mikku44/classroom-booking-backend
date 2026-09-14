@@ -1,0 +1,30 @@
+import { Router } from "express";
+import { env } from "../../config/env";
+import { authenticate } from "../../middlewares/auth";
+import { ok } from "../../utils/response";
+
+const router = Router();
+router.use(authenticate);
+
+router.get("/business-rules", (_req, res) => {
+  ok(res, {
+    bookingCancelMinutes: env.BOOKING_CANCEL_MINUTES,
+    bookingMaxDurationHours: env.BOOKING_MAX_DURATION_HOURS,
+    bookingMaxAdvanceDays: env.BOOKING_MAX_ADVANCE_DAYS,
+    bookingCheckinEarlyMinutes: env.BOOKING_CHECKIN_EARLY_MINUTES,
+    bookingCheckinLateMinutes: env.BOOKING_CHECKIN_LATE_MINUTES,
+    bookingReminderMinutes: env.BOOKING_REMINDER_MINUTES,
+    roles: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+    bookingStatuses: [
+      "PENDING",
+      "CONFIRMED",
+      "IN_USE",
+      "COMPLETED",
+      "REJECTED",
+      "CANCELLED",
+      "NO_SHOW",
+    ],
+  });
+});
+
+export default router;

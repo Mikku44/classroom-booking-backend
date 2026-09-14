@@ -291,6 +291,26 @@ export const swaggerDocument = {
         responses: success(),
       },
     },
+    "/api/config/business-rules": {
+      get: {
+        tags: ["Users"],
+        summary: "ค่ากฎการจองสำหรับ Frontend validation",
+        security: bearer,
+        responses: success(),
+      },
+    },
+    "/api/users/directory": {
+      get: {
+        tags: ["Users"],
+        summary: "รายชื่อผู้ใช้ Active สำหรับ STAFF/ADMIN จองแทน",
+        security: bearer,
+        parameters: [
+          { name: "search", in: "query", schema: { type: "string" } },
+          limit,
+        ],
+        responses: success(),
+      },
+    },
     "/api/users/me": {
       get: {
         tags: ["Users"],

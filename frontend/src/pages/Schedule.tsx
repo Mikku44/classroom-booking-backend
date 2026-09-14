@@ -1,174 +1,266 @@
 import { useEffect, useState } from "react";
 import { get } from "../api";
-import type { Classroom } from "../types";
+import { BookingForm } from "./Classrooms";
+import type { AvailabilityRoom, Booking, Classroom } from "../types";
 
-type Conflict = {
-  id: string;
-  bookingCode: string;
-  startAt: string;
-  endAt: string;
-  status: string;
-};
-type AvailabilityRoom = Classroom & {
-  available: boolean;
-  conflicts: Conflict[];
-};
-type AvailabilityResult = {
-  room: Classroom;
-  available: boolean;
-  conflicts: Conflict[];
-};
+type ScheduleRoom = Classroom & { bookings: Booking[] };
+const localInput = (date: Date) =>
+  new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
 
-export function SchedulePage() {
+export function SchedulePage({
+  onBooked,
+}: {
+  onBooked: (booking: Booking) => void;
+}) {
+  const initialStart = new Date();
+  initialStart.setMinutes(0, 0, 0);
+  initialStart.setHours(initialStart.getHours() + 1);
   const [rooms, setRooms] = useState<Classroom[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
-  const [results, setResults] = useState<AvailabilityResult[]>([]);
+  const [startAt, setStartAt] = useState(localInput(initialStart));
+  const [endAt, setEndAt] = useState(
+    localInput(new Date(initialStart.getTime() + 60 * 60 * 1000)),
+  );
+  const [availability, setAvailability] = useState<AvailabilityRoom[]>([]);
+  const [schedule, setSchedule] = useState<ScheduleRoom[]>([]);
+  const [bookingRoom, setBookingRoom] = useState<Classroom | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     get<Classroom[]>("/classrooms?page=1&limit=100")
-      .then(setRooms)
-      .catch((error) => setMessage(error.message));
+      .then((items) => {
+        setRooms(items);
+        setSelectedIds(items.map((room) => room.id));
+      })
+      .catch((caught) => setMessage(caught.message));
   }, []);
-
-  const toggleRoom = (roomId: string) => {
-    setSelectedIds((current) =>
-      current.includes(roomId)
-        ? current.filter((id) => id !== roomId)
-        : [...current, roomId],
-    );
-    setResults([]);
+  const query = () =>
+    `startAt=${encodeURIComponent(new Date(startAt).toISOString())}&endAt=${encodeURIComponent(new Date(endAt).toISOString())}&classroomIds=${selectedIds.join(",")}`;
+  const validate = () => {
+    if (!startAt || !endAt || selectedIds.length === 0) {
+      setMessage("กรุณาเลือกห้องและช่วงเวลา");
+      return false;
+    }
+    if (new Date(endAt) <= new Date(startAt)) {
+      setMessage("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่ม");
+      return false;
+    }
+    return true;
   };
-
   const checkAvailability = async () => {
+    if (!validate()) return;
     setLoading(true);
     setMessage("");
-    setResults([]);
     try {
-      const query =
-        "?startAt=" +
-        encodeURIComponent(new Date(startAt).toISOString()) +
-        "&endAt=" +
-        encodeURIComponent(new Date(endAt).toISOString()) +
-        "&classroomIds=" +
-        selectedIds.join(",");
       const data = await get<{ rooms: AvailabilityRoom[] }>(
-        "/classrooms/availability" + query,
+        "/classrooms/availability?" + query(),
       );
-      setResults(
-        data.rooms.map((room) => ({
-          room,
-          available: room.available,
-          conflicts: room.conflicts,
-        })),
-      );
-    } catch (error) {
-      setMessage((error as Error).message);
+      setAvailability(data.rooms);
+    } catch (caught) {
+      setMessage((caught as Error).message);
     } finally {
       setLoading(false);
     }
   };
-
+  const loadSchedule = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const data = await get<{ rooms: ScheduleRoom[] }>(
+        "/classrooms/schedule?" + query(),
+      );
+      setSchedule(data.rooms);
+    } catch (caught) {
+      setMessage((caught as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const toggle = (id: string) => {
+    setSelectedIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
+    );
+    setAvailability([]);
+    setSchedule([]);
+  };
   return (
     <>
-      <h1>ตารางการใช้ห้อง</h1>
-      <section className="card">
-        <div className="schedule-heading">
-          <h2>ห้องเรียนทั้งหมด ({rooms.length})</h2>
-          <span>เลือกแล้ว {selectedIds.length} ห้อง</span>
+      <div className="page-title">
+        <div>
+          <p className="eyebrow">ROOM SCHEDULE</p>
+          <h1>ตารางการใช้ห้อง</h1>
+          <p className="muted">
+            เลือกได้หลายห้อง ตรวจสอบเวลาว่าง และดู Booking ที่ใช้งานห้องอยู่
+          </p>
         </div>
-        <button onClick={() => setSelectedIds(rooms.map((room) => room.id))}>
-          เลือกทั้งหมด
-        </button>
-        <button
-          onClick={() => {
-            setSelectedIds([]);
-            setResults([]);
-          }}
-        >
-          ล้างการเลือก
-        </button>
-        {rooms.length === 0 && <p>ไม่พบห้องเรียนที่เปิดใช้งาน</p>}
-        <div className="cards">
-          {rooms.map((room) => {
-            const selected = selectedIds.includes(room.id);
-            return (
-              <button
-                className={selected ? "card selected-room" : "card"}
-                key={room.id}
-                aria-pressed={selected}
-                onClick={() => toggleRoom(room.id)}
-              >
-                <span className="room-check">
-                  {selected ? "✓ เลือกแล้ว" : "เลือกห้อง"}
-                </span>
-                <br />
-                <b>{room.name}</b>
-                <br />
-                {room.building} ชั้น {room.floor}
-                <br />
-                รองรับ {room.capacity} คน
-                <br />
-                <span className="badge">{room.status}</span>
-              </button>
-            );
-          })}
+      </div>
+      <section className="card">
+        <div className="section-heading">
+          <h2>
+            เลือกห้องเรียน ({selectedIds.length}/{rooms.length})
+          </h2>
+          <div>
+            <button
+              onClick={() => setSelectedIds(rooms.map((room) => room.id))}
+            >
+              เลือกทั้งหมด
+            </button>
+            <button
+              onClick={() => {
+                setSelectedIds([]);
+                setAvailability([]);
+                setSchedule([]);
+              }}
+            >
+              ล้าง
+            </button>
+          </div>
+        </div>
+        <div className="room-selector">
+          {rooms.map((room) => (
+            <button
+              className={
+                selectedIds.includes(room.id)
+                  ? "room-pill selected"
+                  : "room-pill"
+              }
+              onClick={() => toggle(room.id)}
+              key={room.id}
+            >
+              <strong>{room.name}</strong>
+              <small>
+                {room.building} · {room.capacity} คน
+              </small>
+            </button>
+          ))}
         </div>
       </section>
-
-      <section className="card">
-        <h2>ตรวจสอบช่วงเวลาการใช้ห้อง</h2>
-        <p>ระบบจะตรวจสอบพร้อมกันทั้ง {selectedIds.length} ห้องที่เลือก</p>
-        <input
-          type="datetime-local"
-          value={startAt}
-          onChange={(event) => setStartAt(event.target.value)}
-        />
-        <input
-          type="datetime-local"
-          value={endAt}
-          onChange={(event) => setEndAt(event.target.value)}
-        />
+      <section className="card schedule-controls">
+        <label>
+          เริ่ม
+          <input
+            type="datetime-local"
+            value={startAt}
+            onChange={(event) => setStartAt(event.target.value)}
+          />
+        </label>
+        <label>
+          สิ้นสุด
+          <input
+            type="datetime-local"
+            value={endAt}
+            onChange={(event) => setEndAt(event.target.value)}
+          />
+        </label>
+        <button disabled={loading} onClick={loadSchedule}>
+          ดูตาราง
+        </button>
         <button
           className="primary"
-          disabled={loading || selectedIds.length === 0 || !startAt || !endAt}
+          disabled={loading}
           onClick={checkAvailability}
         >
-          {loading ? "กำลังตรวจสอบ..." : "ตรวจสอบห้องว่าง"}
+          {loading ? "กำลังโหลด..." : "ตรวจห้องว่าง"}
         </button>
-        {message && <p className="error">{message}</p>}
       </section>
-
-      {results.length > 0 && (
-        <section className="card">
-          <h2>ผลการตรวจสอบ</h2>
-          <div className="cards">
-            {results.map((result) => (
-              <article className="card" key={result.room.id}>
-                <h3>{result.room.name}</h3>
+      {message && <p className="alert error">{message}</p>}
+      {availability.length > 0 && (
+        <section>
+          <div className="section-heading">
+            <h2>ผลการตรวจสอบ</h2>
+            <span className="muted">
+              ว่าง {availability.filter((room) => room.available).length} ห้อง
+            </span>
+          </div>
+          <div className="room-grid">
+            {availability.map((room) => (
+              <article className="card" key={room.id}>
+                <div className="section-heading">
+                  <h3>{room.name}</h3>
+                  <span
+                    className={`status ${room.available ? "status-available" : "status-unavailable"}`}
+                  >
+                    {room.available ? "ว่าง" : "ไม่ว่าง"}
+                  </span>
+                </div>
                 <p>
-                  {result.room.building} ชั้น {result.room.floor}
+                  {room.building} · ชั้น {room.floor}
                 </p>
-                <p className={result.available ? "available" : "unavailable"}>
-                  {result.available
-                    ? "ว่าง — สามารถจองได้"
-                    : "ไม่ว่างในช่วงเวลานี้"}
-                </p>
-                {result.conflicts.map((booking) => (
-                  <small key={booking.id}>
-                    {booking.bookingCode}:{" "}
-                    {new Date(booking.startAt).toLocaleString()}–
-                    {new Date(booking.endAt).toLocaleTimeString()} (
-                    {booking.status})<br />
-                  </small>
+                {room.conflicts.map((booking) => (
+                  <div className="conflict" key={booking.id}>
+                    {new Date(booking.startAt).toLocaleTimeString("th-TH", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    –
+                    {new Date(booking.endAt).toLocaleTimeString("th-TH", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    · {booking.status}
+                  </div>
                 ))}
+                {room.available && (
+                  <button
+                    className="primary full"
+                    onClick={() => setBookingRoom(room)}
+                  >
+                    จองช่วงเวลานี้
+                  </button>
+                )}
               </article>
             ))}
           </div>
         </section>
+      )}
+      {schedule.length > 0 && (
+        <section>
+          <h2>ตาราง Booking</h2>
+          <div className="schedule-table">
+            <div className="schedule-head">
+              <span>ห้อง</span>
+              <span>รายการใช้งาน</span>
+            </div>
+            {schedule.map((room) => (
+              <div className="schedule-row" key={room.id}>
+                <div>
+                  <strong>{room.name}</strong>
+                  <small>{room.building}</small>
+                </div>
+                <div>
+                  {room.bookings.length === 0 ? (
+                    <span className="available">ว่างตลอดช่วง</span>
+                  ) : (
+                    room.bookings.map((booking) => (
+                      <div className="booking-slot" key={booking.id}>
+                        <strong>{booking.purpose}</strong>
+                        <span>
+                          {new Date(booking.startAt).toLocaleString("th-TH")} –{" "}
+                          {new Date(booking.endAt).toLocaleTimeString("th-TH")}{" "}
+                          · {booking.status}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {bookingRoom && (
+        <BookingForm
+          room={bookingRoom}
+          initialStartAt={startAt}
+          initialEndAt={endAt}
+          close={() => setBookingRoom(null)}
+          onBooked={onBooked}
+        />
       )}
     </>
   );

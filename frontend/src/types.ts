@@ -13,6 +13,8 @@ export type User = {
   email: string;
   role: UserRole;
   status: "ACTIVE" | "INACTIVE";
+  createdAt?: string;
+  updatedAt?: string;
 };
 export type Classroom = {
   id: string;
@@ -41,11 +43,40 @@ export type Booking = {
   completedAt?: string | null;
   cancelledAt?: string | null;
   cancelReason?: string | null;
+  adminNote?: string | null;
+  approvedAt?: string | null;
+  createdAt?: string;
+  approver?: User | null;
 };
 export type Notification = {
   id: string;
+  bookingId?: string | null;
   title: string;
   message: string;
   type: string;
   isRead: boolean;
+  createdAt: string;
+  booking?: Pick<
+    Booking,
+    "id" | "bookingCode" | "startAt" | "endAt" | "status"
+  > & { classroom?: Pick<Classroom, "id" | "name"> };
+};
+
+export type BusinessRules = {
+  bookingCancelMinutes: number;
+  bookingMaxDurationHours: number;
+  bookingMaxAdvanceDays: number;
+  bookingCheckinEarlyMinutes: number;
+  bookingCheckinLateMinutes: number;
+  bookingReminderMinutes: number;
+  roles: UserRole[];
+  bookingStatuses: BookingStatus[];
+};
+
+export type AvailabilityRoom = Classroom & {
+  available: boolean;
+  conflicts: Pick<
+    Booking,
+    "id" | "bookingCode" | "startAt" | "endAt" | "status"
+  >[];
 };

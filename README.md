@@ -102,6 +102,12 @@ STAFF/ADMIN สามารถส่ง `userId` เพื่อจองแท�
 ### 7. หน้าประวัติการจอง
 
     GET /api/users/me/bookings?page=1&limit=20
+
+    # STAFF/ADMIN: รายชื่อผู้ใช้ Active สำหรับเลือกจองแทน
+    GET /api/users/directory?search=somchai&limit=100
+
+    # ค่ากฎธุรกิจที่ Frontend ใช้แสดงผลและ validate เบื้องต้น
+    GET /api/config/business-rules
     GET /api/bookings?page=1&limit=20&status=PENDING
 
 ยกเลิกการจอง:
