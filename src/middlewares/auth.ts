@@ -15,12 +15,23 @@ export const authenticate = async (
     if (!header?.startsWith("Bearer ")) throw new AppError(401, "Unauthorized");
     const payload = jwt.verify(header.slice(7), env.JWT_SECRET) as {
       id: string;
+      tokenVersion?: number;
     };
     const user = await prisma.user.findUnique({
       where: { id: BigInt(payload.id) },
-      select: { id: true, role: true, email: true, status: true },
+      select: {
+        id: true,
+        role: true,
+        email: true,
+        status: true,
+        tokenVersion: true,
+      },
     });
-    if (!user || user.status !== "ACTIVE")
+    if (
+      !user ||
+      user.status !== "ACTIVE" ||
+      (user.tokenVersion ?? 0) !== (payload.tokenVersion ?? 0)
+    )
       throw new AppError(401, "User is inactive or no longer exists");
     req.user = { id: user.id, role: user.role, email: user.email };
     next();

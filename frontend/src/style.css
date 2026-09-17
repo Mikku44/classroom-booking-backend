@@ -869,6 +869,37 @@ tbody tr:last-child td {
   text-align: right;
   white-space: nowrap;
 }
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 12px 2px;
+}
+.pagination-summary {
+  color: #738097;
+  font-size: 14px;
+}
+.pagination-buttons,
+.page-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pagination-buttons button {
+  min-width: 39px;
+  margin: 0;
+}
+.pagination-buttons button.active {
+  background: #315fdb;
+  border-color: #315fdb;
+  color: #fff;
+}
+.page-ellipsis {
+  color: #8a96a9;
+  padding: 0 2px;
+}
 @media (max-width: 1000px) {
   aside {
     width: 218px;
@@ -987,5 +1018,13 @@ tbody tr:last-child td {
   }
   .notification .section-heading {
     display: block;
+  }
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .pagination-buttons {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 }

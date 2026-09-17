@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { get, patch, post } from "../api";
+import { useEffect, useState } from "react";
+import { get, getPage, patch, post, type PageMeta } from "../api";
+import { Pagination } from "../components/Pagination";
 import { bookingStatusLabel, formatDateTime, statusClass } from "../format";
 import type {
   Booking,
@@ -31,19 +32,29 @@ export function BookingsPage({ user }: { user: User }) {
   const [rules, setRules] = useState<BusinessRules | null>(null);
   const [status, setStatus] = useState<BookingStatus | "ALL">("ALL");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [meta, setMeta] = useState<PageMeta>({ page: 1, limit: 10, total: 0 });
   const [editing, setEditing] = useState<Booking | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const canViewAll = ["STAFF", "ADMIN"].includes(user.role);
 
-  const load = async () => {
+  const load = async (targetPage = page) => {
     setLoading(true);
     setMessage("");
-    const query = new URLSearchParams({ limit: "100" });
+    const query = new URLSearchParams({
+      page: String(targetPage),
+      limit: String(limit),
+    });
     if (canViewAll) query.set("scope", "all");
     if (status !== "ALL") query.set("status", status);
+    if (search.trim()) query.set("search", search.trim());
     try {
-      setItems(await get<Booking[]>(`/bookings?${query}`));
+      const result = await getPage<Booking>(`/bookings?${query}`);
+      setItems(result.data);
+      setMeta(result.meta);
+      setPage(result.meta.page);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -52,29 +63,19 @@ export function BookingsPage({ user }: { user: User }) {
   };
 
   useEffect(() => {
-    void load();
-  }, [status]);
+    void load(page);
+  }, [status, page, limit]);
   useEffect(() => {
     get<BusinessRules>("/config/business-rules")
       .then(setRules)
       .catch(() => undefined);
   }, []);
 
-  const filtered = useMemo(() => {
-    const value = search.trim().toLowerCase();
-    if (!value) return items;
-    return items.filter((booking) =>
-      [
-        booking.bookingCode,
-        booking.purpose,
-        booking.classroom?.name,
-        booking.user?.name,
-        booking.user?.email,
-      ]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(value)),
-    );
-  }, [items, search]);
+  const submitSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (page === 1) void load(1);
+    else setPage(1);
+  };
 
   const runAction = async (request: Promise<unknown>, success: string) => {
     setMessage("");
@@ -126,7 +127,7 @@ export function BookingsPage({ user }: { user: User }) {
           </p>
         </div>
       </div>
-      <section className="card filters">
+      <form className="card filters" onSubmit={submitSearch}>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -134,7 +135,10 @@ export function BookingsPage({ user }: { user: User }) {
         />
         <select
           value={status}
-          onChange={(event) => setStatus(event.target.value as typeof status)}
+          onChange={(event) => {
+            setStatus(event.target.value as typeof status);
+            setPage(1);
+          }}
         >
           {statuses.map((item) => (
             <option value={item} key={item}>
@@ -142,8 +146,22 @@ export function BookingsPage({ user }: { user: User }) {
             </option>
           ))}
         </select>
-        <button onClick={load}>รีเฟรช</button>
-      </section>
+        <select
+          value={limit}
+          onChange={(event) => {
+            setLimit(Number(event.target.value));
+            setPage(1);
+          }}
+          aria-label="จำนวนการจองต่อหน้า"
+        >
+          <option value="10">10 / หน้า</option>
+          <option value="20">20 / หน้า</option>
+          <option value="50">50 / หน้า</option>
+        </select>
+        <button className="primary" type="submit">
+          ค้นหา
+        </button>
+      </form>
       {message && (
         <p
           className={`alert ${message.includes("แล้ว") || message.includes("สำเร็จ") ? "success" : "error"}`}
@@ -153,11 +171,11 @@ export function BookingsPage({ user }: { user: User }) {
       )}
       {loading ? (
         <div className="empty">กำลังโหลดรายการจอง...</div>
-      ) : filtered.length === 0 ? (
+      ) : items.length === 0 ? (
         <div className="empty">ไม่พบรายการจอง</div>
       ) : (
         <div className="booking-list">
-          {filtered.map((booking) => (
+          {items.map((booking) => (
             <article className="card booking-item" key={booking.id}>
               <div className="booking-main">
                 <div className="section-heading">
@@ -260,6 +278,7 @@ export function BookingsPage({ user }: { user: User }) {
           ))}
         </div>
       )}
+      <Pagination meta={meta} onPage={setPage} />
       {editing && (
         <EditBooking
           booking={editing}

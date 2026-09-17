@@ -138,7 +138,10 @@ export const swaggerDocument = {
           category: { type: "string", nullable: true },
           equipment: { type: "array", items: { type: "string" } },
           imageUrl: { type: "string", format: "uri", nullable: true },
-          status: { type: "string", enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"] },
+          status: {
+            type: "string",
+            enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"],
+          },
         },
       },
       BookingInput: bookingInput,
@@ -261,7 +264,14 @@ export const swaggerDocument = {
         summary: "สมัครสมาชิกด้วยข้อมูลโปรไฟล์และรหัสผู้ใช้งาน",
         requestBody: jsonBody({
           type: "object",
-          required: ["firstName", "lastName", "userCode", "phone", "email", "password"],
+          required: [
+            "firstName",
+            "lastName",
+            "userCode",
+            "phone",
+            "email",
+            "password",
+          ],
           properties: {
             name: { type: "string" },
             firstName: { type: "string" },
@@ -288,12 +298,24 @@ export const swaggerDocument = {
           type: "object",
           required: ["username", "password"],
           properties: {
-            username: { type: "string", description: "Email หรือรหัสผู้ใช้งาน" },
+            username: {
+              type: "string",
+              description: "Email หรือรหัสผู้ใช้งาน",
+            },
             email: { type: "string", format: "email" },
             password: { type: "string" },
           },
         }),
         responses: success("Logged in"),
+      },
+    },
+    "/api/auth/logout": {
+      post: {
+        tags: ["Auth"],
+        summary:
+          "ออกจากระบบ ยกเลิก JWT เดิมทั้งหมดของบัญชี และให้ Frontend ลบ token",
+        security: bearer,
+        responses: success("Logged out"),
       },
     },
     "/api/auth/me": {
@@ -392,8 +414,19 @@ export const swaggerDocument = {
           { name: "building", in: "query", schema: { type: "string" } },
           { name: "floor", in: "query", schema: { type: "string" } },
           { name: "category", in: "query", schema: { type: "string" } },
-          { name: "status", in: "query", schema: { type: "string", enum: ["ACTIVE", "AVAILABLE", "INACTIVE", "MAINTENANCE"] } },
-          { name: "sort", in: "query", schema: { type: "string", enum: ["code", "capacity", "name"] } },
+          {
+            name: "status",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["ACTIVE", "AVAILABLE", "INACTIVE", "MAINTENANCE"],
+            },
+          },
+          {
+            name: "sort",
+            in: "query",
+            schema: { type: "string", enum: ["code", "capacity", "name"] },
+          },
           { name: "minCapacity", in: "query", schema: { type: "integer" } },
           {
             name: "equipment",
@@ -469,6 +502,12 @@ export const swaggerDocument = {
         parameters: [
           page,
           limit,
+          {
+            name: "search",
+            in: "query",
+            description: "ค้นหารหัส วัตถุประสงค์ ห้อง อาคาร หรือผู้จอง",
+            schema: { type: "string" },
+          },
           { name: "status", in: "query", schema: { type: "string" } },
           {
             name: "scope",
@@ -662,7 +701,10 @@ export const swaggerDocument = {
           type: "object",
           required: ["status"],
           properties: {
-            status: { type: "string", enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"] },
+            status: {
+              type: "string",
+              enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"],
+            },
           },
         }),
         responses: success(),
@@ -788,7 +830,10 @@ export const swaggerDocument = {
               type: "string",
               enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
             },
-            status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"] },
+            status: {
+              type: "string",
+              enum: ["ACTIVE", "INACTIVE", "SUSPENDED"],
+            },
           },
         }),
         responses: { 201: { description: "Created" }, ...success() },
@@ -857,7 +902,10 @@ export const swaggerDocument = {
           type: "object",
           required: ["status"],
           properties: {
-            status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"] },
+            status: {
+              type: "string",
+              enum: ["ACTIVE", "INACTIVE", "SUSPENDED"],
+            },
           },
         }),
         responses: success(),

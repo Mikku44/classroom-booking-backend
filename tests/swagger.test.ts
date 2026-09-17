@@ -4,6 +4,7 @@ describe("Swagger coverage", () => {
   it("documents every business-flow route", () => {
     const paths = swaggerDocument.paths as Record<string, unknown>;
     const expected = [
+      "/api/auth/logout",
       "/api/config/business-rules",
       "/api/users/directory",
       "/api/classrooms/availability",

@@ -15,7 +15,10 @@ const registration = z
     firstName: z.string().trim().min(1).max(100).optional(),
     lastName: z.string().trim().min(1).max(100).optional(),
     userCode: z.string().trim().min(3).max(50).optional(),
-    phone: z.string().regex(/^0[0-9]{8,9}$/).optional(),
+    phone: z
+      .string()
+      .regex(/^0[0-9]{8,9}$/)
+      .optional(),
     email: z.string().email(),
     password: z.string().min(8),
     role: z.enum(["USER", "STUDENT", "TEACHER"]).default("STUDENT"),
@@ -49,7 +52,8 @@ r.post("/register", async (req, res, next) => {
   try {
     const { password, ...profile } = registration.parse(req.body);
     const name =
-      profile.name ?? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim();
+      profile.name ??
+      `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim();
     const user = await prisma.user.create({
       data: {
         id: newId(),
@@ -84,13 +88,30 @@ r.post("/login", async (req, res, next) => {
     )
       throw new AppError(401, "Invalid username, email, or password");
     const token = jwt.sign(
-      { id: user.id.toString(), role: user.role, email: user.email },
+      {
+        id: user.id.toString(),
+        role: user.role,
+        email: user.email,
+        tokenVersion: user.tokenVersion,
+      },
       env.JWT_SECRET,
       { expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"] },
     );
     const { passwordHash: _passwordHash, ...safe } = user;
     void _passwordHash;
     ok(res, { token, user: jsonSafe(safe) }, "Logged in");
+  } catch (error) {
+    next(error);
+  }
+});
+
+r.post("/logout", authenticate, async (req, res, next) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { tokenVersion: { increment: 1 } },
+    });
+    ok(res, null, "Logged out");
   } catch (error) {
     next(error);
   }

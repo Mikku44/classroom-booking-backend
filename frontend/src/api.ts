@@ -11,10 +11,21 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(
+export type PageMeta = {
+  page: number;
+  limit: number;
+  total: number;
+};
+
+type ApiEnvelope<T> = {
+  data: T;
+  meta?: PageMeta;
+};
+
+async function requestEnvelope<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+): Promise<ApiEnvelope<T>> {
   const token = localStorage.getItem("token");
   const headers = {
     ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -32,10 +43,30 @@ export async function api<T>(
       body.errors,
     );
   }
-  return body.data as T;
+  return body as ApiEnvelope<T>;
+}
+
+export async function api<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return (await requestEnvelope<T>(path, options)).data;
 }
 
 export const get = <T>(path: string) => api<T>(path);
+export async function getPage<T>(
+  path: string,
+): Promise<{ data: T[]; meta: PageMeta }> {
+  const result = await requestEnvelope<T[]>(path);
+  return {
+    data: result.data,
+    meta: result.meta || {
+      page: 1,
+      limit: result.data.length,
+      total: result.data.length,
+    },
+  };
+}
 export const post = <T>(path: string, data?: unknown) =>
   api<T>(path, {
     method: "POST",

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { get, post } from "../api";
+import { get, getPage, post, type PageMeta } from "../api";
+import { Pagination } from "../components/Pagination";
 import type { Booking, BusinessRules, Classroom, User } from "../types";
 
 export function ClassroomsPage({
@@ -12,17 +13,26 @@ export function ClassroomsPage({
   const [search, setSearch] = useState("");
   const [building, setBuilding] = useState("");
   const [minCapacity, setMinCapacity] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(12);
+  const [meta, setMeta] = useState<PageMeta>({ page: 1, limit: 12, total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const load = async () => {
+  const load = async (targetPage = page) => {
     setLoading(true);
     setError("");
-    const query = new URLSearchParams({ page: "1", limit: "100" });
-    if (search) query.set("search", search);
-    if (building) query.set("building", building);
+    const query = new URLSearchParams({
+      page: String(targetPage),
+      limit: String(limit),
+    });
+    if (search.trim()) query.set("search", search.trim());
+    if (building.trim()) query.set("building", building.trim());
     if (minCapacity) query.set("minCapacity", minCapacity);
     try {
-      setRooms(await get<Classroom[]>("/classrooms?" + query));
+      const result = await getPage<Classroom>("/classrooms?" + query);
+      setRooms(result.data);
+      setMeta(result.meta);
+      setPage(result.meta.page);
     } catch (caught) {
       setError((caught as Error).message);
     } finally {
@@ -30,8 +40,13 @@ export function ClassroomsPage({
     }
   };
   useEffect(() => {
-    void load();
-  }, []);
+    void load(page);
+  }, [page, limit]);
+  const submitSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (page === 1) void load(1);
+    else setPage(1);
+  };
   return (
     <>
       <div className="page-title">
@@ -43,7 +58,7 @@ export function ClassroomsPage({
           </p>
         </div>
       </div>
-      <section className="card filters">
+      <form className="card filters" onSubmit={submitSearch}>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -61,54 +76,69 @@ export function ClassroomsPage({
           onChange={(event) => setMinCapacity(event.target.value)}
           placeholder="ความจุขั้นต่ำ"
         />
-        <button className="primary" onClick={load}>
+        <select
+          value={limit}
+          onChange={(event) => {
+            setLimit(Number(event.target.value));
+            setPage(1);
+          }}
+          aria-label="จำนวนห้องต่อหน้า"
+        >
+          <option value="6">6 / หน้า</option>
+          <option value="12">12 / หน้า</option>
+          <option value="24">24 / หน้า</option>
+        </select>
+        <button className="primary" type="submit">
           ค้นหา
         </button>
-      </section>
+      </form>
       {error && <p className="alert error">{error}</p>}
       {loading ? (
         <div className="empty">กำลังโหลดห้องเรียน...</div>
       ) : rooms.length === 0 ? (
         <div className="empty">ไม่พบห้องเรียนตามเงื่อนไข</div>
       ) : (
-        <div className="room-grid">
-          {rooms.map((room) => (
-            <article className="card room-card" key={room.id}>
-              {room.imageUrl ? (
-                <img
-                  className="room-image"
-                  src={room.imageUrl}
-                  alt={room.name}
-                />
-              ) : (
-                <div className="room-placeholder">{room.name}</div>
-              )}
-              <div className="room-content">
-                <div className="section-heading">
-                  <h2>{room.name}</h2>
-                  <span className="status status-available">AVAILABLE</span>
+        <>
+          <div className="room-grid">
+            {rooms.map((room) => (
+              <article className="card room-card" key={room.id}>
+                {room.imageUrl ? (
+                  <img
+                    className="room-image"
+                    src={room.imageUrl}
+                    alt={room.name}
+                  />
+                ) : (
+                  <div className="room-placeholder">{room.name}</div>
+                )}
+                <div className="room-content">
+                  <div className="section-heading">
+                    <h2>{room.name}</h2>
+                    <span className="status status-available">AVAILABLE</span>
+                  </div>
+                  <p>
+                    {room.building} · ชั้น {room.floor}
+                  </p>
+                  <p>
+                    รองรับสูงสุด <strong>{room.capacity}</strong> คน
+                  </p>
+                  <div className="chips">
+                    {(room.equipment || []).map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </div>
+                  <button
+                    className="primary full"
+                    onClick={() => setSelected(room)}
+                  >
+                    จองห้องนี้
+                  </button>
                 </div>
-                <p>
-                  {room.building} · ชั้น {room.floor}
-                </p>
-                <p>
-                  รองรับสูงสุด <strong>{room.capacity}</strong> คน
-                </p>
-                <div className="chips">
-                  {(room.equipment || []).map((item) => (
-                    <span key={item}>{item}</span>
-                  ))}
-                </div>
-                <button
-                  className="primary full"
-                  onClick={() => setSelected(room)}
-                >
-                  จองห้องนี้
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+          <Pagination meta={meta} onPage={setPage} />
+        </>
       )}
       {selected && (
         <BookingForm

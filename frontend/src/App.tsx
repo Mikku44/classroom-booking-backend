@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { get } from "./api";
+import { get, post } from "./api";
 import { Layout } from "./components/Layout";
 import { AdminPage } from "./pages/Admin";
 import { LoginPage, RegisterPage } from "./pages/Auth";
@@ -22,12 +22,21 @@ export function App() {
     null,
   );
 
-  const logout = () => {
+  const clearSession = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("lastBooking");
     setUser(null);
     setPage("login");
+  };
+  const logout = async () => {
+    try {
+      await post("/auth/logout");
+    } catch {
+      // Local logout must still succeed if the token has expired or API is offline.
+    } finally {
+      clearSession();
+    }
   };
   const login = (nextUser: User) => {
     setUser(nextUser);
@@ -45,7 +54,7 @@ export function App() {
   };
 
   useEffect(() => {
-    const expire = () => logout();
+    const expire = () => clearSession();
     window.addEventListener("auth-expired", expire);
     if (localStorage.getItem("token")) {
       get<User>("/auth/me")
@@ -53,7 +62,7 @@ export function App() {
           setUser(current);
           localStorage.setItem("user", JSON.stringify(current));
         })
-        .catch(() => logout());
+        .catch(() => clearSession());
     }
     return () => window.removeEventListener("auth-expired", expire);
   }, []);

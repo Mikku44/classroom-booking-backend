@@ -33,6 +33,7 @@ const bookingInput = z.object({
   endAt: z.coerce.date(),
 });
 const listQuery = z.object({
+  search: z.string().trim().max(255).optional(),
   status: z.nativeEnum(BookingStatus).optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
@@ -239,6 +240,18 @@ router.get("/", async (req, res, next) => {
     const where: Prisma.BookingWhereInput = {
       userId: query.scope === "all" ? query.userId : req.user!.id,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { bookingCode: { contains: query.search } },
+              { purpose: { contains: query.search } },
+              { classroom: { name: { contains: query.search } } },
+              { classroom: { building: { contains: query.search } } },
+              { user: { name: { contains: query.search } } },
+              { user: { email: { contains: query.search } } },
+            ],
+          }
+        : {}),
       ...(query.startDate || query.endDate
         ? {
             startAt: {

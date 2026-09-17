@@ -106,6 +106,12 @@ STAFF/ADMIN สามารถส่ง `userId` เพื่อจองแท�
 
     GET /api/users/me/bookings?page=1&limit=20
 
+    # ออกจากระบบ ส่ง Bearer token; ระบบจะเพิ่ม tokenVersion เพื่อยกเลิก JWT เดิมทั้งหมดของบัญชี
+    POST /api/auth/logout
+
+    # รายการจอง: ค้นหา + แบ่งหน้า (search ครอบคลุมรหัส/วัตถุประสงค์/ห้อง/ผู้จอง)
+    GET /api/bookings?search=A101&status=PENDING&page=1&limit=10
+
     # STAFF/ADMIN: รายชื่อผู้ใช้ Active สำหรับเลือกจองแทน
     GET /api/users/directory?search=somchai&limit=100
 
