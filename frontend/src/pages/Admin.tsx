@@ -727,7 +727,7 @@ function AdminUsers() {
           onChange={(event) => setRole(event.target.value as typeof role)}
         >
           <option value="ALL">ทุก Role</option>
-          {(["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"] as UserRole[]).map(
+          {(["USER", "STUDENT", "TEACHER", "ADMIN"] as UserRole[]).map(
             (item) => (
               <option value={item} key={item}>
                 {roleLabel[item]}
@@ -838,7 +838,6 @@ function AdminUsers() {
                       "USER",
                       "STUDENT",
                       "TEACHER",
-                      "STAFF",
                       "ADMIN",
                     ] as UserRole[]
                   ).map((item) => (

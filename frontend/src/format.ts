@@ -14,7 +14,6 @@ export const roleLabel: Record<UserRole, string> = {
   USER: "ผู้ใช้งาน",
   STUDENT: "นักศึกษา",
   TEACHER: "อาจารย์",
-  STAFF: "เจ้าหน้าที่",
   ADMIN: "ผู้ดูแลระบบ",
 };
 

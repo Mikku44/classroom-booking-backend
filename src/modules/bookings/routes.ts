@@ -17,7 +17,7 @@ const router = Router();
 router.use(authenticate);
 
 const blockingStatuses: BookingStatus[] = ["PENDING", "CONFIRMED", "IN_USE"];
-const delegatedRoles: Role[] = ["STAFF", "ADMIN"];
+const delegatedRoles: Role[] = ["ADMIN"];
 const equipmentSchema = z
   .array(z.string().trim().min(1).max(100))
   .max(30)

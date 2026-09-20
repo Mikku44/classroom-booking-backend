@@ -83,6 +83,6 @@ erDiagram
 - User หนึ่งคนได้รับ Notification ได้หลายรายการ
 - User หนึ่งคนสร้าง Audit Log ได้หลายรายการ
 
-Role: `USER`, `STUDENT`, `TEACHER`, `STAFF`, `ADMIN`
+Role: `USER`, `STUDENT`, `TEACHER`, `ADMIN`
 
 Booking Status: `PENDING`, `CONFIRMED`, `IN_USE`, `COMPLETED`, `REJECTED`, `CANCELLED`, `NO_SHOW`

@@ -50,7 +50,7 @@ const bookingInput = {
     userId: {
       type: "integer",
       format: "int64",
-      description: "STAFF/ADMIN เท่านั้น สำหรับจองแทนผู้อื่น",
+      description: "ADMIN เท่านั้น สำหรับจองแทนผู้อื่น",
     },
     purpose: { type: "string", maxLength: 255 },
     attendeeCount: { type: "integer", minimum: 1 },
@@ -119,7 +119,7 @@ export const swaggerDocument = {
           email: { type: "string", format: "email" },
           role: {
             type: "string",
-            enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+            enum: ["USER", "STUDENT", "TEACHER", "ADMIN"],
           },
           status: { type: "string", enum: ["ACTIVE", "INACTIVE", "SUSPENDED"] },
           createdAt: { type: "string", format: "date-time" },
@@ -337,7 +337,7 @@ export const swaggerDocument = {
     "/api/users/directory": {
       get: {
         tags: ["Users"],
-        summary: "รายชื่อผู้ใช้ Active สำหรับ STAFF/ADMIN จองแทน",
+        summary: "รายชื่อผู้ใช้ Active สำหรับ ADMIN จองแทน",
         security: bearer,
         parameters: [
           { name: "search", in: "query", schema: { type: "string" } },
@@ -497,7 +497,7 @@ export const swaggerDocument = {
     "/api/bookings": {
       get: {
         tags: ["Bookings"],
-        summary: "รายการจอง; STAFF/ADMIN ใช้ scope=all ได้",
+        summary: "รายการจอง; ADMIN ใช้ scope=all ได้",
         security: bearer,
         parameters: [
           page,
@@ -844,7 +844,7 @@ export const swaggerDocument = {
             password: { type: "string", minLength: 8 },
             role: {
               type: "string",
-              enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+              enum: ["USER", "STUDENT", "TEACHER", "ADMIN"],
             },
             status: {
               type: "string",
@@ -901,7 +901,7 @@ export const swaggerDocument = {
           properties: {
             role: {
               type: "string",
-              enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+              enum: ["USER", "STUDENT", "TEACHER", "ADMIN"],
             },
           },
         }),
@@ -1015,7 +1015,7 @@ export const swaggerDocument = {
             in: "query",
             schema: {
               type: "string",
-              enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+              enum: ["USER", "STUDENT", "TEACHER", "ADMIN"],
             },
           },
           { name: "building", in: "query", schema: { type: "string" } },

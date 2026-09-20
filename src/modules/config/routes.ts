@@ -16,7 +16,7 @@ router.get("/business-rules", (_req, res) => {
     bookingCheckinEarlyMinutes: env.BOOKING_CHECKIN_EARLY_MINUTES,
     bookingCheckinLateMinutes: env.BOOKING_CHECKIN_LATE_MINUTES,
     bookingReminderMinutes: env.BOOKING_REMINDER_MINUTES,
-    roles: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+    roles: ["USER", "STUDENT", "TEACHER", "ADMIN"],
     bookingStatuses: [
       "PENDING",
       "CONFIRMED",

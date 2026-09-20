@@ -92,7 +92,7 @@ Role ที่สมัครเองได้คือ USER, STUDENT และ
 
 Request ต้องมี classroomId, purpose, attendeeCount, startAt และ endAt และส่ง `requestedEquipment` เป็นรายการอุปกรณ์ที่เลือกได้ ระบบตรวจความจุ อุปกรณ์ ระยะเวลาสูงสุด ระยะเวลาจองล่วงหน้า และเวลาชนก่อนบันทึก หากซ้ำคืน HTTP 409
 
-STAFF/ADMIN สามารถส่ง `userId` เพื่อจองแทนผู้ใช้อื่น และดูรายการทั้งหมดด้วย `GET /api/bookings?scope=all`
+ADMIN สามารถส่ง `userId` เพื่อจองแทนผู้ใช้อื่น และดูรายการทั้งหมดด้วย `GET /api/bookings?scope=all`
 
 รายการจองรองรับมุมมองรายวัน รายสัปดาห์ (จันทร์-อาทิตย์) และรายเดือน โดยใช้วันอ้างอิงตามเวลา Asia/Bangkok:
 
@@ -120,7 +120,7 @@ STAFF/ADMIN สามารถส่ง `userId` เพื่อจองแท�
     # รายการจอง: ค้นหา + แบ่งหน้า (search ครอบคลุมรหัส/วัตถุประสงค์/ห้อง/ผู้จอง)
     GET /api/bookings?search=A101&status=PENDING&page=1&limit=10
 
-    # STAFF/ADMIN: รายชื่อผู้ใช้ Active สำหรับเลือกจองแทน
+    # ADMIN: รายชื่อผู้ใช้ Active สำหรับเลือกจองแทน
     GET /api/users/directory?search=somchai&limit=100
 
     # ค่ากฎธุรกิจที่ Frontend ใช้แสดงผลและ validate เบื้องต้น
@@ -233,7 +233,7 @@ Request:
 
     GET /api/admin/users
 
-สร้างผู้ใช้ รวม STAFF และ ADMIN:
+สร้างผู้ใช้ รวมถึง ADMIN:
 
     POST /api/admin/users
 
@@ -250,7 +250,7 @@ Request:
 
 Role และ Status ที่รองรับ:
 
-- Role: USER, STUDENT, TEACHER, STAFF, ADMIN
+- Role: USER, STUDENT, TEACHER, ADMIN
 - Status: ACTIVE, INACTIVE
 
 ### 12. หน้ารายงานและสถิติ

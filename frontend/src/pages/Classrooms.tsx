@@ -180,7 +180,7 @@ export function BookingForm({
     localStorage.getItem("user") || "null",
   ) as User | null;
   const canBookForOthers =
-    !!currentUser && ["STAFF", "ADMIN"].includes(currentUser.role);
+    currentUser?.role === "ADMIN";
   useEffect(() => {
     get<BusinessRules>("/config/business-rules")
       .then(setRules)

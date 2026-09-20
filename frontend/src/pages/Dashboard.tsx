@@ -13,7 +13,7 @@ export function DashboardPage({
   const [rules, setRules] = useState<BusinessRules | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    const scope = user.role === "STAFF" ? "?scope=all&limit=100" : "?limit=100";
+    const scope = user.role === "ADMIN" ? "?scope=all&limit=100" : "?limit=100";
     Promise.all([
       get<Booking[]>("/bookings" + scope),
       get<BusinessRules>("/config/business-rules"),

@@ -23,7 +23,7 @@ const publicUser = {
 } as const;
 r.get(
   "/directory",
-  requireAnyRole("STAFF", "ADMIN"),
+  requireAnyRole("ADMIN"),
   async (req, res, next) => {
     try {
       const query = z

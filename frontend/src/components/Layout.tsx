@@ -6,7 +6,6 @@ const roleLabel = {
   USER: "ผู้ใช้งาน",
   STUDENT: "นักศึกษา",
   TEACHER: "อาจารย์",
-  STAFF: "เจ้าหน้าที่",
   ADMIN: "ผู้ดูแลระบบ",
 };
 
@@ -41,7 +40,7 @@ export function Layout({
     ["dashboard", "ภาพรวม"],
     ["classrooms", "รายการห้องเรียน"],
     ["schedule", "ตารางการใช้ห้อง"],
-    ["bookings", user.role === "STAFF" ? "รายการจองทั้งหมด" : "ประวัติการจอง"],
+    ["bookings", user.role === "ADMIN" ? "รายการจองทั้งหมด" : "ประวัติการจอง"],
     ["notifications", `การแจ้งเตือน${unread ? ` (${unread})` : ""}`],
     ["profile", "โปรไฟล์"],
     ...(user.role === "ADMIN" ? [["admin", "จัดการระบบ"]] : []),

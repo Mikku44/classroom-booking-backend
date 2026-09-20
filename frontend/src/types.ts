@@ -1,4 +1,4 @@
-export type UserRole = "USER" | "STUDENT" | "TEACHER" | "STAFF" | "ADMIN";
+export type UserRole = "USER" | "STUDENT" | "TEACHER" | "ADMIN";
 export type BookingStatus =
   | "PENDING"
   | "CONFIRMED"

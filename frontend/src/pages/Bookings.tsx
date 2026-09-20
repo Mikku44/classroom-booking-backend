@@ -38,7 +38,7 @@ export function BookingsPage({ user }: { user: User }) {
   const [editing, setEditing] = useState<Booking | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const canViewAll = ["STAFF", "ADMIN"].includes(user.role);
+  const canViewAll = user.role === "ADMIN";
 
   const load = async (targetPage = page) => {
     setLoading(true);
