@@ -82,7 +82,7 @@ async function main() {
   const rooms = [];
   for (const [index, item] of roomSeed.entries()) {
     const [code, name, building, floor, capacity, category] = item;
-    const status = index === 5 ? "MAINTENANCE" : index === 9 ? "INACTIVE" : "ACTIVE";
+    const status = index === 5 ? "MAINTENANCE" : index === 9 ? "INACTIVE" : "AVAILABLE";
     rooms.push(
       await prisma.classroom.upsert({
         where: { id: BigInt(index + 3) },

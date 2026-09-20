@@ -22,7 +22,7 @@ enum UserStatus {
 }
 
 enum ClassroomStatus {
-  ACTIVE
+  AVAILABLE
   INACTIVE
   MAINTENANCE
 }
@@ -68,7 +68,7 @@ model Classroom {
   category    String?
   equipment   Json?
   imageUrl    String?
-  status      ClassroomStatus @default(ACTIVE)
+  status      ClassroomStatus @default(AVAILABLE)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   bookings    Booking[]

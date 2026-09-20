@@ -23,12 +23,14 @@ describe("Classroom availability and schedule API", () => {
 
   it("lists classrooms without authentication", async () => {
     jest.spyOn(prisma.classroom, "findMany").mockResolvedValue([
-      { id: 1n, code: "A101", name: "Lecture", building: "A", floor: "1", capacity: 40, equipment: [], status: "ACTIVE" },
+      { id: 1n, code: "A101", name: "Lecture", building: "A", floor: "1", capacity: 40, equipment: [], status: "AVAILABLE" },
     ] as never);
     jest.spyOn(prisma.classroom, "count").mockResolvedValue(1);
     const response = await request(app).get("/api/classrooms?limit=20");
     expect(response.status).toBe(200);
-    expect(response.body.data[0]).toEqual(expect.objectContaining({ code: "A101" }));
+    expect(response.body.data[0]).toEqual(
+      expect.objectContaining({ code: "A101", status: "ACTIVE" }),
+    );
   });
 
   it("accepts ACTIVE as the only active classroom status", async () => {
@@ -58,14 +60,14 @@ describe("Classroom availability and schedule API", () => {
         name: "A101",
         building: "A",
         equipment: ["Projector"],
-        status: "ACTIVE",
+        status: "AVAILABLE",
       },
       {
         id: 2n,
         name: "A102",
         building: "A",
         equipment: ["Projector"],
-        status: "ACTIVE",
+        status: "AVAILABLE",
       },
     ] as never);
     jest
@@ -98,7 +100,7 @@ describe("Classroom availability and schedule API", () => {
     jest
       .spyOn(prisma.classroom, "findMany")
       .mockResolvedValue([
-        { id: 1n, name: "A101", building: "A", status: "ACTIVE" },
+        { id: 1n, name: "A101", building: "A", status: "AVAILABLE" },
       ] as never);
     jest
       .spyOn(prisma.booking, "findMany")

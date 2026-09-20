@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ClassroomStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { AppError } from "../../middlewares/error";
 import { prisma, jsonSafe } from "../../utils/prisma";
@@ -55,7 +55,9 @@ router.get("/", async (req, res, next) => {
       })
       .parse(req.query);
     const where: Prisma.ClassroomWhereInput = {
-      ...(query.status ? { status: query.status } : {}),
+      ...(query.status
+        ? { status: query.status === "ACTIVE" ? "AVAILABLE" : query.status }
+        : {}),
       ...(query.search
         ? {
             OR: [
@@ -114,7 +116,7 @@ router.get("/availability", async (req, res, next) => {
     ensureRange(query.startAt, query.endAt);
     const rooms = await prisma.classroom.findMany({
       where: {
-        status: "ACTIVE",
+        status: "AVAILABLE",
         ...(query.classroomIds?.length
           ? { id: { in: query.classroomIds } }
           : {}),
@@ -180,7 +182,7 @@ router.get("/schedule", async (req, res, next) => {
       throw new AppError(400, "Schedule range cannot exceed 31 days");
     const rooms = await prisma.classroom.findMany({
       where: {
-        status: "ACTIVE",
+        status: "AVAILABLE",
         ...(query.classroomIds?.length
           ? { id: { in: query.classroomIds } }
           : {}),
@@ -242,7 +244,7 @@ router.get("/:id/availability", async (req, res, next) => {
     const classroom = await prisma.classroom.findUnique({
       where: { id: BigInt(req.params.id) },
     });
-    if (!classroom || classroom.status !== "ACTIVE")
+    if (!classroom || classroom.status !== "AVAILABLE")
       throw new AppError(404, "Classroom not found or inactive");
     const count = await prisma.booking.count({
       where: {
