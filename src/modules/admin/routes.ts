@@ -32,12 +32,7 @@ const classroomInput = z.object({
   category: z.string().trim().min(1).max(100),
   equipment: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
   imageUrl: z.string().url().nullable().optional(),
-  status: z
-    .enum(["ACTIVE", "INACTIVE", "MAINTENANCE"])
-    .default("ACTIVE")
-    .transform((status): ClassroomStatus =>
-      status === "ACTIVE" ? "AVAILABLE" : status,
-    ),
+  status: z.nativeEnum(ClassroomStatus).default("ACTIVE"),
 });
 const adminUserInput = z.object({
   name: z.string().min(1).max(150),
@@ -294,12 +289,7 @@ r.patch("/classrooms/:id/status", async (req, res, next) => {
     const id = BigInt(req.params.id);
     const oldValue = await prisma.classroom.findUnique({ where: { id } });
     if (!oldValue) throw new AppError(404, "Classroom not found");
-    const status = z
-      .enum(["ACTIVE", "INACTIVE", "MAINTENANCE"])
-      .transform((value): ClassroomStatus =>
-        value === "ACTIVE" ? "AVAILABLE" : value,
-      )
-      .parse(req.body.status);
+    const status = z.nativeEnum(ClassroomStatus).parse(req.body.status);
     const classroom = await prisma.classroom.update({
       where: { id },
       data: { status },
