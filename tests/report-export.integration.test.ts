@@ -79,9 +79,32 @@ describe("Report export API", () => {
   });
 
   it("exports CSV using an inclusive Bangkok date range and filters", async () => {
-    const findMany = jest
-      .spyOn(prisma.booking, "findMany")
-      .mockResolvedValue([] as never);
+    const findMany = jest.spyOn(prisma.booking, "findMany").mockResolvedValue([
+      {
+        bookingCode: "BK-TEST",
+        userId: 10n,
+        user: {
+          name: "Test User",
+          email: "test@example.com",
+          role: "STUDENT",
+        },
+        classroomId: 20n,
+        classroom: {
+          code: "A201",
+          name: "ห้องเรียนอัจฉริยะ",
+          building: "Building A",
+          floor: "2",
+          category: "ห้องเรียน",
+        },
+        purpose: "Project",
+        attendeeCount: 10,
+        requestedEquipment: ["Projector"],
+        startAt: new Date("2026-09-20T08:00:00.000Z"),
+        endAt: new Date("2026-09-20T10:00:00.000Z"),
+        status: "CONFIRMED",
+        createdAt: new Date("2026-09-19T01:30:00.000Z"),
+      },
+    ] as never);
 
     const response = await request(app)
       .get(
@@ -94,6 +117,12 @@ describe("Report export API", () => {
     expect(response.headers["content-disposition"]).toContain(
       "booking-report-2026-09-01-to-2026-09-30.csv",
     );
+    expect(response.text).toContain(
+      "รหัสการจอง,รหัสผู้ใช้,ชื่อผู้จอง,อีเมลผู้จอง,บทบาทผู้ใช้",
+    );
+    expect(response.text).toContain('"20 ก.ย. 2026 15:00 น."');
+    expect(response.text).toContain('"20 ก.ย. 2026 17:00 น."');
+    expect(response.text).not.toContain("2026-09-20T08:00:00.000Z");
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({

@@ -1077,26 +1077,56 @@ r.get("/reports/export", async (req, res, next) => {
     });
     const escape = (value: unknown) =>
       '"' + String(value ?? "").replace(/"/g, '""') + '"';
+    const thaiMonths = [
+      "ม.ค.",
+      "ก.พ.",
+      "มี.ค.",
+      "เม.ย.",
+      "พ.ค.",
+      "มิ.ย.",
+      "ก.ค.",
+      "ส.ค.",
+      "ก.ย.",
+      "ต.ค.",
+      "พ.ย.",
+      "ธ.ค.",
+    ];
+    const formatBangkokDateTime = (value: Date) => {
+      const parts = Object.fromEntries(
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Bangkok",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        })
+          .formatToParts(value)
+          .map((part) => [part.type, part.value]),
+      );
+      return `${parts.day} ${thaiMonths[Number(parts.month) - 1]} ${parts.year} ${parts.hour}:${parts.minute} น.`;
+    };
     const csv = [
       [
-        "bookingCode",
-        "userId",
-        "userName",
-        "userEmail",
-        "userRole",
-        "classroomId",
-        "classroomCode",
-        "classroomName",
-        "building",
-        "floor",
-        "category",
-        "purpose",
-        "attendeeCount",
-        "requestedEquipment",
-        "startAt",
-        "endAt",
-        "status",
-        "createdAt",
+        "รหัสการจอง",
+        "รหัสผู้ใช้",
+        "ชื่อผู้จอง",
+        "อีเมลผู้จอง",
+        "บทบาทผู้ใช้",
+        "รหัสห้องในระบบ",
+        "รหัสห้อง",
+        "ชื่อห้อง",
+        "อาคาร",
+        "ชั้น",
+        "ประเภทห้อง",
+        "วัตถุประสงค์",
+        "จำนวนผู้เข้าร่วม",
+        "อุปกรณ์ที่ต้องการ",
+        "วันเวลาเริ่มต้น (เวลาไทย)",
+        "วันเวลาสิ้นสุด (เวลาไทย)",
+        "สถานะการจอง",
+        "วันที่สร้างรายการ (เวลาไทย)",
       ].join(","),
       ...rows.map((row) =>
         [
@@ -1116,10 +1146,10 @@ r.get("/reports/export", async (req, res, next) => {
           Array.isArray(row.requestedEquipment)
             ? row.requestedEquipment.join(" | ")
             : "",
-          row.startAt.toISOString(),
-          row.endAt.toISOString(),
+          formatBangkokDateTime(row.startAt),
+          formatBangkokDateTime(row.endAt),
           row.status,
-          row.createdAt.toISOString(),
+          formatBangkokDateTime(row.createdAt),
         ]
           .map(escape)
           .join(","),
