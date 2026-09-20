@@ -46,7 +46,7 @@ describe("Booking API", () => {
   it("creates a pending booking", async () => {
     jest.spyOn(prisma.classroom, "findUnique").mockResolvedValue({
       id: 3n,
-      status: "AVAILABLE",
+      status: "ACTIVE",
       capacity: 40,
       equipment: ["Projector"],
     } as never);
@@ -77,7 +77,7 @@ describe("Booking API", () => {
   it("returns 409 for a conflicting time", async () => {
     jest.spyOn(prisma.classroom, "findUnique").mockResolvedValue({
       id: 3n,
-      status: "AVAILABLE",
+      status: "ACTIVE",
       capacity: 40,
       equipment: ["Projector"],
     } as never);
@@ -106,7 +106,7 @@ describe("Booking API", () => {
   it("returns 400 when attendee count exceeds classroom capacity", async () => {
     jest.spyOn(prisma.classroom, "findUnique").mockResolvedValue({
       id: 3n,
-      status: "AVAILABLE",
+      status: "ACTIVE",
       capacity: 10,
       equipment: ["Projector"],
     } as never);
@@ -153,7 +153,7 @@ describe("Booking API", () => {
   it("returns 400 when requested equipment is unavailable", async () => {
     jest.spyOn(prisma.classroom, "findUnique").mockResolvedValue({
       id: 3n,
-      status: "AVAILABLE",
+      status: "ACTIVE",
       capacity: 40,
       equipment: ["Whiteboard"],
     } as never);

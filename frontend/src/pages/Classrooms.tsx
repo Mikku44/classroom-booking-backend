@@ -114,7 +114,7 @@ export function ClassroomsPage({
                 <div className="room-content">
                   <div className="section-heading">
                     <h2>{room.name}</h2>
-                    <span className="status status-available">AVAILABLE</span>
+                    <span className="status status-active">ACTIVE</span>
                   </div>
                   <p>
                     {room.building} · ชั้น {room.floor}

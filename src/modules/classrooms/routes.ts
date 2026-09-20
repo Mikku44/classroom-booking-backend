@@ -46,7 +46,7 @@ router.get("/", async (req, res, next) => {
         building: z.string().optional(),
         floor: z.string().optional(),
         category: z.string().optional(),
-        status: z.enum(["ACTIVE", "AVAILABLE", "INACTIVE", "MAINTENANCE"]).optional(),
+        status: z.enum(["ACTIVE", "INACTIVE", "MAINTENANCE"]).optional(),
         minCapacity: z.coerce.number().int().positive().optional(),
         equipment: csvStrings,
         sort: z.enum(["code", "capacity", "name"]).default("code"),
@@ -54,10 +54,8 @@ router.get("/", async (req, res, next) => {
         limit: z.coerce.number().int().positive().max(100).default(20),
       })
       .parse(req.query);
-    const status: ClassroomStatus | undefined =
-      query.status === "ACTIVE" ? "AVAILABLE" : query.status;
     const where: Prisma.ClassroomWhereInput = {
-      ...(status ? { status } : {}),
+      ...(query.status ? { status: query.status } : {}),
       ...(query.search
         ? {
             OR: [
@@ -116,7 +114,7 @@ router.get("/availability", async (req, res, next) => {
     ensureRange(query.startAt, query.endAt);
     const rooms = await prisma.classroom.findMany({
       where: {
-        status: "AVAILABLE",
+        status: "ACTIVE",
         ...(query.classroomIds?.length
           ? { id: { in: query.classroomIds } }
           : {}),
@@ -182,7 +180,7 @@ router.get("/schedule", async (req, res, next) => {
       throw new AppError(400, "Schedule range cannot exceed 31 days");
     const rooms = await prisma.classroom.findMany({
       where: {
-        status: "AVAILABLE",
+        status: "ACTIVE",
         ...(query.classroomIds?.length
           ? { id: { in: query.classroomIds } }
           : {}),
@@ -244,7 +242,7 @@ router.get("/:id/availability", async (req, res, next) => {
     const classroom = await prisma.classroom.findUnique({
       where: { id: BigInt(req.params.id) },
     });
-    if (!classroom || classroom.status !== "AVAILABLE")
+    if (!classroom || classroom.status !== "ACTIVE")
       throw new AppError(404, "Classroom not found or inactive");
     const count = await prisma.booking.count({
       where: {

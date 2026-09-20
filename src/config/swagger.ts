@@ -140,7 +140,7 @@ export const swaggerDocument = {
           imageUrl: { type: "string", format: "uri", nullable: true },
           status: {
             type: "string",
-            enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"],
+            enum: ["ACTIVE", "INACTIVE", "MAINTENANCE"],
           },
         },
       },
@@ -419,7 +419,7 @@ export const swaggerDocument = {
             in: "query",
             schema: {
               type: "string",
-              enum: ["ACTIVE", "AVAILABLE", "INACTIVE", "MAINTENANCE"],
+              enum: ["ACTIVE", "INACTIVE", "MAINTENANCE"],
             },
           },
           {
@@ -719,7 +719,7 @@ export const swaggerDocument = {
           properties: {
             status: {
               type: "string",
-              enum: ["AVAILABLE", "INACTIVE", "MAINTENANCE"],
+              enum: ["ACTIVE", "INACTIVE", "MAINTENANCE"],
             },
           },
         }),

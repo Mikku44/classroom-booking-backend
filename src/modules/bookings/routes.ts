@@ -253,7 +253,7 @@ router.post("/", async (req, res, next) => {
       const classroom = await tx.classroom.findUnique({
         where: { id: input.classroomId },
       });
-      if (!classroom || classroom.status !== "AVAILABLE")
+      if (!classroom || classroom.status !== "ACTIVE")
         throw new AppError(400, "Classroom is unavailable");
       if (input.attendeeCount > classroom.capacity)
         throw new AppError(400, "Attendee count exceeds classroom capacity");
@@ -412,7 +412,7 @@ router.patch("/:id", async (req, res, next) => {
       const classroom = await tx.classroom.findUnique({
         where: { id: classroomId },
       });
-      if (!classroom || classroom.status !== "AVAILABLE")
+      if (!classroom || classroom.status !== "ACTIVE")
         throw new AppError(400, "Classroom is unavailable");
       if (attendeeCount > classroom.capacity)
         throw new AppError(400, "Attendee count exceeds classroom capacity");

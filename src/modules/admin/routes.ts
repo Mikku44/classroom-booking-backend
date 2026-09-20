@@ -32,7 +32,7 @@ const classroomInput = z.object({
   category: z.string().trim().min(1).max(100),
   equipment: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
   imageUrl: z.string().url().nullable().optional(),
-  status: z.nativeEnum(ClassroomStatus).default("AVAILABLE"),
+  status: z.nativeEnum(ClassroomStatus).default("ACTIVE"),
 });
 const adminUserInput = z.object({
   name: z.string().min(1).max(150),

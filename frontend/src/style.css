@@ -490,6 +490,7 @@ label small {
   color: #08775a;
 }
 .status-completed,
+.status-active,
 .status-available {
   background: #e4f7e9;
   color: #22753d;

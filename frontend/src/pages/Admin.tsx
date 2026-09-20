@@ -250,7 +250,7 @@ function AdminClassrooms() {
   const changeStatus = async (room: Classroom) => {
     try {
       await patch(`/admin/classrooms/${room.id}/status`, {
-        status: room.status === "AVAILABLE" ? "INACTIVE" : "AVAILABLE",
+        status: room.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
       });
       await load();
     } catch (error) {
@@ -290,7 +290,7 @@ function AdminClassrooms() {
               id: "",
               ...emptyRoom,
               equipment: [],
-              status: "AVAILABLE",
+              status: "ACTIVE",
             });
           }}
         >
@@ -316,7 +316,7 @@ function AdminClassrooms() {
               <div className="section-heading">
                 <h2>{room.name}</h2>
                 <span
-                  className={`status ${room.status === "AVAILABLE" ? "status-available" : "status-inactive"}`}
+                  className={`status ${room.status === "ACTIVE" ? "status-active" : "status-inactive"}`}
                 >
                   {room.status}
                 </span>
@@ -332,9 +332,9 @@ function AdminClassrooms() {
               <div className="card-actions">
                 <button onClick={() => openEdit(room)}>แก้ไข / รูปภาพ</button>
                 <button onClick={() => void changeStatus(room)}>
-                  {room.status === "AVAILABLE" ? "ปิดชั่วคราว" : "เปิดใช้งาน"}
+                  {room.status === "ACTIVE" ? "ปิดชั่วคราว" : "เปิดใช้งาน"}
                 </button>
-                {room.status === "AVAILABLE" && (
+                {room.status === "ACTIVE" && (
                   <button
                     className="danger-outline"
                     onClick={() => void deactivate(room)}
