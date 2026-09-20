@@ -32,16 +32,79 @@ const bookingInput = z.object({
   startAt: z.coerce.date(),
   endAt: z.coerce.date(),
 });
-const listQuery = z.object({
-  search: z.string().trim().max(255).optional(),
-  status: z.nativeEnum(BookingStatus).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  scope: z.enum(["mine", "all"]).default("mine"),
-  userId: z.coerce.bigint().positive().optional(),
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
+const listQuery = z
+  .object({
+    search: z.string().trim().max(255).optional(),
+    status: z.nativeEnum(BookingStatus).optional(),
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+    view: z.enum(["daily", "weekly", "monthly"]).optional(),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
+    scope: z.enum(["mine", "all"]).default("mine"),
+    userId: z.coerce.bigint().positive().optional(),
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .superRefine((query, ctx) => {
+    if (query.date && !query.view)
+      ctx.addIssue({
+        code: "custom",
+        path: ["date"],
+        message: "date requires view",
+      });
+    if (query.view && (query.startDate || query.endDate))
+      ctx.addIssue({
+        code: "custom",
+        path: ["view"],
+        message: "view cannot be combined with startDate or endDate",
+      });
+  });
+
+type CalendarView = "daily" | "weekly" | "monthly";
+const bangkokDate = (value: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+const shiftDate = (date: string, days: number) => {
+  const [year, month, day] = date.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
+};
+const calendarRange = (view: CalendarView, requestedDate?: string) => {
+  const anchor = requestedDate ?? bangkokDate(new Date());
+  const parsedAnchor = new Date(`${anchor}T00:00:00+07:00`);
+  if (
+    Number.isNaN(parsedAnchor.getTime()) ||
+    bangkokDate(parsedAnchor) !== anchor
+  )
+    throw new AppError(400, "Invalid date");
+
+  let startDate = anchor;
+  let endDate: string;
+  if (view === "daily") {
+    endDate = shiftDate(anchor, 1);
+  } else if (view === "weekly") {
+    const [year, month, day] = anchor.split("-").map(Number);
+    const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    startDate = shiftDate(anchor, -((dayOfWeek + 6) % 7));
+    endDate = shiftDate(startDate, 7);
+  } else {
+    const [year, month] = anchor.split("-").map(Number);
+    startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    endDate = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+  }
+  return {
+    anchor,
+    startAt: new Date(`${startDate}T00:00:00+07:00`),
+    endAt: new Date(`${endDate}T00:00:00+07:00`),
+  };
+};
 
 const ensureTime = (startAt: Date, endAt: Date) => {
   const now = new Date();
@@ -229,6 +292,7 @@ router.post("/", async (req, res, next) => {
 router.get("/", async (req, res, next) => {
   try {
     const query = listQuery.parse(req.query);
+    const viewRange = query.view ? calendarRange(query.view, query.date) : null;
     if (
       (query.scope === "all" || query.userId) &&
       !delegatedRoles.includes(req.user!.role)
@@ -252,14 +316,19 @@ router.get("/", async (req, res, next) => {
             ],
           }
         : {}),
-      ...(query.startDate || query.endDate
+      ...(viewRange
         ? {
-            startAt: {
-              ...(query.startDate ? { gte: query.startDate } : {}),
-              ...(query.endDate ? { lte: query.endDate } : {}),
-            },
+            startAt: { lt: viewRange.endAt },
+            endAt: { gt: viewRange.startAt },
           }
-        : {}),
+        : query.startDate || query.endDate
+          ? {
+              startAt: {
+                ...(query.startDate ? { gte: query.startDate } : {}),
+                ...(query.endDate ? { lte: query.endDate } : {}),
+              },
+            }
+          : {}),
     };
     const [data, total] = await Promise.all([
       prisma.booking.findMany({
@@ -278,6 +347,14 @@ router.get("/", async (req, res, next) => {
       page: query.page,
       limit: query.limit,
       total,
+      ...(viewRange
+        ? {
+            view: query.view,
+            date: viewRange.anchor,
+            startAt: viewRange.startAt.toISOString(),
+            endAt: viewRange.endAt.toISOString(),
+          }
+        : {}),
     });
   } catch (error) {
     next(error);

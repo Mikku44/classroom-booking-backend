@@ -529,6 +529,22 @@ export const swaggerDocument = {
             in: "query",
             schema: { type: "string", format: "date-time" },
           },
+          {
+            name: "view",
+            in: "query",
+            description: "กรองตามวัน สัปดาห์ (จันทร์-อาทิตย์) หรือเดือน",
+            schema: {
+              type: "string",
+              enum: ["daily", "weekly", "monthly"],
+            },
+          },
+          {
+            name: "date",
+            in: "query",
+            description:
+              "วันอ้างอิงรูปแบบ YYYY-MM-DD สำหรับ view; ค่าเริ่มต้นคือวันปัจจุบันตามเวลา Asia/Bangkok",
+            schema: { type: "string", format: "date", example: "2026-09-20" },
+          },
         ],
         responses: success(),
       },
@@ -928,7 +944,7 @@ export const swaggerDocument = {
     "/api/admin/reports/summary": {
       get: {
         tags: ["Reports"],
-        summary: "รายงานสรุป",
+        summary: "รายงานสรุป พร้อมกราฟการจอง 7 วันและสัดส่วนสถานะ",
         security: bearer,
         responses: success(),
       },
@@ -960,8 +976,59 @@ export const swaggerDocument = {
     "/api/admin/reports/export": {
       get: {
         tags: ["Reports"],
-        summary: "Export CSV",
+        summary: "Export CSV พร้อมช่วงวันที่และตัวกรอง",
         security: bearer,
+        parameters: [
+          {
+            name: "startDate",
+            in: "query",
+            description: "วันเริ่มต้น (รวมวัน) รูปแบบ YYYY-MM-DD หรือ ISO 8601",
+            schema: { type: "string", example: "2026-09-01" },
+          },
+          {
+            name: "endDate",
+            in: "query",
+            description:
+              "วันสิ้นสุด (รวมทั้งวัน) รูปแบบ YYYY-MM-DD หรือ ISO 8601",
+            schema: { type: "string", example: "2026-09-30" },
+          },
+          {
+            name: "status",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: [
+                "PENDING",
+                "CONFIRMED",
+                "IN_USE",
+                "REJECTED",
+                "CANCELLED",
+                "COMPLETED",
+                "NO_SHOW",
+              ],
+            },
+          },
+          { name: "classroomId", in: "query", schema: { type: "integer" } },
+          { name: "userId", in: "query", schema: { type: "integer" } },
+          {
+            name: "userRole",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["USER", "STUDENT", "TEACHER", "STAFF", "ADMIN"],
+            },
+          },
+          { name: "building", in: "query", schema: { type: "string" } },
+          { name: "floor", in: "query", schema: { type: "string" } },
+          { name: "category", in: "query", schema: { type: "string" } },
+          {
+            name: "search",
+            in: "query",
+            description:
+              "ค้นหารหัสจอง วัตถุประสงค์ ห้อง อาคาร ชื่อหรืออีเมลผู้จอง",
+            schema: { type: "string" },
+          },
+        ],
         responses: {
           200: {
             description: "CSV",

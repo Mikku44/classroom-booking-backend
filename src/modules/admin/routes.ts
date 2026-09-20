@@ -23,7 +23,10 @@ const classroomInput = z.object({
   code: z.string().trim().min(1).max(50),
   name: z.string().min(1).max(100),
   building: z.string().min(1).max(100),
-  floor: z.string().regex(/^[1-9]\d*$/).max(50),
+  floor: z
+    .string()
+    .regex(/^[1-9]\d*$/)
+    .max(50),
   capacity: z.coerce.number().int().positive(),
   description: z.string().trim().min(1).max(5000),
   category: z.string().trim().min(1).max(100),
@@ -36,7 +39,10 @@ const adminUserInput = z.object({
   userCode: z.string().trim().min(3).max(50).optional(),
   firstName: z.string().trim().min(1).max(100).optional(),
   lastName: z.string().trim().min(1).max(100).optional(),
-  phone: z.string().regex(/^0[0-9]{8,9}$/).optional(),
+  phone: z
+    .string()
+    .regex(/^0[0-9]{8,9}$/)
+    .optional(),
   email: z.string().email(),
   password: z.string().min(8),
   role: z.nativeEnum(Role).default("USER"),
@@ -109,13 +115,15 @@ r.get("/dashboard/summary", async (_req, res, next) => {
         where: {
           startAt: {
             gte: new Date(
-              new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }) +
-                "T00:00:00+07:00",
+              new Date().toLocaleDateString("en-CA", {
+                timeZone: "Asia/Bangkok",
+              }) + "T00:00:00+07:00",
             ),
             lt: new Date(
               new Date(
-                new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" }) +
-                  "T00:00:00+07:00",
+                new Date().toLocaleDateString("en-CA", {
+                  timeZone: "Asia/Bangkok",
+                }) + "T00:00:00+07:00",
               ).getTime() +
                 24 * 60 * 60 * 1000,
             ),
@@ -682,7 +690,10 @@ r.patch("/users/:id", async (req, res, next) => {
         userCode: z.string().trim().min(3).max(50).nullable(),
         firstName: z.string().trim().min(1).max(100).nullable(),
         lastName: z.string().trim().min(1).max(100).nullable(),
-        phone: z.string().regex(/^0[0-9]{8,9}$/).nullable(),
+        phone: z
+          .string()
+          .regex(/^0[0-9]{8,9}$/)
+          .nullable(),
         email: z.string().email(),
       })
       .partial()
@@ -800,41 +811,179 @@ r.delete("/users/:id", async (req, res, next) => {
   }
 });
 
-const reportFilter = z.object({
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  status: z.nativeEnum(BookingStatus).optional(),
-  classroomId: z.coerce.bigint().optional(),
-  userId: z.coerce.bigint().optional(),
-});
+const reportDate = z
+  .string()
+  .trim()
+  .refine((value) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(`${value}T00:00:00+07:00`);
+      return (
+        !Number.isNaN(parsed.getTime()) &&
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Bangkok",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(parsed) === value
+      );
+    }
+    return !Number.isNaN(Date.parse(value));
+  }, "Invalid date; use YYYY-MM-DD or an ISO 8601 date-time");
+const reportFilter = z
+  .object({
+    startDate: reportDate.optional(),
+    endDate: reportDate.optional(),
+    status: z.nativeEnum(BookingStatus).optional(),
+    classroomId: z.coerce.bigint().positive().optional(),
+    userId: z.coerce.bigint().positive().optional(),
+    userRole: z.nativeEnum(Role).optional(),
+    building: z.string().trim().min(1).max(100).optional(),
+    floor: z.string().trim().min(1).max(50).optional(),
+    category: z.string().trim().min(1).max(100).optional(),
+    search: z.string().trim().min(1).max(255).optional(),
+  })
+  .superRefine((query, ctx) => {
+    if (
+      query.startDate &&
+      query.endDate &&
+      reportDateBoundary(query.startDate, "start").date >
+        reportDateBoundary(query.endDate, "end").date
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: "endDate must be on or after startDate",
+      });
+  });
+const reportDateBoundary = (value: string, side: "start" | "end") => {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!dateOnly) return { date: new Date(value), exclusive: false };
+  const date = new Date(`${value}T00:00:00+07:00`);
+  if (side === "end") date.setUTCDate(date.getUTCDate() + 1);
+  return { date, exclusive: side === "end" };
+};
 const reportWhere = (
   q: z.infer<typeof reportFilter>,
-): Prisma.BookingWhereInput => ({
-  ...(q.status ? { status: q.status } : {}),
-  ...(q.classroomId ? { classroomId: q.classroomId } : {}),
-  ...(q.userId ? { userId: q.userId } : {}),
-  ...(q.startDate || q.endDate
-    ? {
-        startAt: {
-          ...(q.startDate ? { gte: q.startDate } : {}),
-          ...(q.endDate ? { lte: q.endDate } : {}),
-        },
-      }
-    : {}),
-});
+): Prisma.BookingWhereInput => {
+  const start = q.startDate ? reportDateBoundary(q.startDate, "start") : null;
+  const end = q.endDate ? reportDateBoundary(q.endDate, "end") : null;
+  return {
+    ...(q.status ? { status: q.status } : {}),
+    ...(q.classroomId ? { classroomId: q.classroomId } : {}),
+    ...(q.userId ? { userId: q.userId } : {}),
+    ...(q.userRole ? { user: { role: q.userRole } } : {}),
+    ...(q.building || q.floor || q.category
+      ? {
+          classroom: {
+            ...(q.building ? { building: q.building } : {}),
+            ...(q.floor ? { floor: q.floor } : {}),
+            ...(q.category ? { category: q.category } : {}),
+          },
+        }
+      : {}),
+    ...(start || end
+      ? {
+          AND: [
+            ...(start ? [{ endAt: { gt: start.date } }] : []),
+            ...(end
+              ? [
+                  {
+                    startAt: end.exclusive
+                      ? { lt: end.date }
+                      : { lte: end.date },
+                  },
+                ]
+              : []),
+          ],
+        }
+      : {}),
+    ...(q.search
+      ? {
+          OR: [
+            { bookingCode: { contains: q.search } },
+            { purpose: { contains: q.search } },
+            { classroom: { code: { contains: q.search } } },
+            { classroom: { name: { contains: q.search } } },
+            { classroom: { building: { contains: q.search } } },
+            { user: { name: { contains: q.search } } },
+            { user: { email: { contains: q.search } } },
+          ],
+        }
+      : {}),
+  };
+};
+const bangkokDateKey = (value: Date) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+const shiftCalendarDate = (date: string, days: number) => {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days))
+    .toISOString()
+    .slice(0, 10);
+};
 r.get("/reports/summary", async (_req, res, next) => {
   try {
-    const byStatus = await prisma.booking.groupBy({
-      by: ["status"],
-      _count: { _all: true },
+    const today = bangkokDateKey(new Date());
+    const graphStartDate = shiftCalendarDate(today, -6);
+    const graphEndDate = shiftCalendarDate(today, 1);
+    const graphStartAt = new Date(`${graphStartDate}T00:00:00+07:00`);
+    const graphEndAt = new Date(`${graphEndDate}T00:00:00+07:00`);
+    const [users, classrooms, bookings, byStatus, recentBookings] =
+      await Promise.all([
+        prisma.user.count(),
+        prisma.classroom.count(),
+        prisma.booking.count(),
+        prisma.booking.groupBy({
+          by: ["status"],
+          _count: { _all: true },
+        }),
+        prisma.booking.findMany({
+          where: { startAt: { gte: graphStartAt, lt: graphEndAt } },
+          select: { startAt: true },
+        }),
+      ]);
+    const graphCounts = new Map<string, number>();
+    for (const booking of recentBookings) {
+      const date = bangkokDateKey(booking.startAt);
+      graphCounts.set(date, (graphCounts.get(date) ?? 0) + 1);
+    }
+    const statusCounts = new Map(
+      byStatus.map((item) => [item.status, item._count._all]),
+    );
+    const statusPie = Object.values(BookingStatus).map((status) => {
+      const count = statusCounts.get(status) ?? 0;
+      return {
+        status,
+        count,
+        percentage: bookings
+          ? Number(((count / bookings) * 100).toFixed(2))
+          : 0,
+      };
     });
     ok(
       res,
       jsonSafe({
-        users: await prisma.user.count(),
-        classrooms: await prisma.classroom.count(),
-        bookings: await prisma.booking.count(),
+        users,
+        classrooms,
+        bookings,
         byStatus,
+        bookingsGraph: {
+          timezone: "Asia/Bangkok",
+          startDate: graphStartDate,
+          endDate: today,
+          data: Array.from({ length: 7 }, (_, index) => {
+            const date = shiftCalendarDate(graphStartDate, index);
+            return { date, count: graphCounts.get(date) ?? 0 };
+          }),
+        },
+        statusPie: {
+          total: bookings,
+          data: statusPie,
+        },
       }),
     );
   } catch (error) {
@@ -929,22 +1078,61 @@ r.get("/reports/export", async (req, res, next) => {
     const escape = (value: unknown) =>
       '"' + String(value ?? "").replace(/"/g, '""') + '"';
     const csv = [
-      "bookingCode,user,classroom,purpose,startAt,endAt,status",
+      [
+        "bookingCode",
+        "userId",
+        "userName",
+        "userEmail",
+        "userRole",
+        "classroomId",
+        "classroomCode",
+        "classroomName",
+        "building",
+        "floor",
+        "category",
+        "purpose",
+        "attendeeCount",
+        "requestedEquipment",
+        "startAt",
+        "endAt",
+        "status",
+        "createdAt",
+      ].join(","),
       ...rows.map((row) =>
         [
           row.bookingCode,
+          row.userId,
+          row.user.name,
           row.user.email,
+          row.user.role,
+          row.classroomId,
+          row.classroom.code,
           row.classroom.name,
+          row.classroom.building,
+          row.classroom.floor,
+          row.classroom.category,
           row.purpose,
+          row.attendeeCount,
+          Array.isArray(row.requestedEquipment)
+            ? row.requestedEquipment.join(" | ")
+            : "",
           row.startAt.toISOString(),
           row.endAt.toISOString(),
           row.status,
+          row.createdAt.toISOString(),
         ]
           .map(escape)
           .join(","),
       ),
     ].join("\n");
-    res.type("text/csv").attachment("booking-report.csv").send(csv);
+    const range = [q.startDate, q.endDate]
+      .filter(Boolean)
+      .map((value) => value!.slice(0, 10))
+      .join("-to-");
+    res
+      .type("text/csv; charset=utf-8")
+      .attachment(`booking-report${range ? `-${range}` : ""}.csv`)
+      .send(`\uFEFF${csv}`);
   } catch (error) {
     next(error);
   }

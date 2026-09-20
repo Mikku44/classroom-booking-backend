@@ -184,6 +184,62 @@ describe("Booking API", () => {
       }),
     );
   });
+  it.each([
+    [
+      "daily",
+      "2026-09-20",
+      "2026-09-19T17:00:00.000Z",
+      "2026-09-20T17:00:00.000Z",
+    ],
+    [
+      "weekly",
+      "2026-09-20",
+      "2026-09-13T17:00:00.000Z",
+      "2026-09-20T17:00:00.000Z",
+    ],
+    [
+      "monthly",
+      "2026-09-20",
+      "2026-08-31T17:00:00.000Z",
+      "2026-09-30T17:00:00.000Z",
+    ],
+  ])(
+    "filters the %s view using an Asia/Bangkok calendar range",
+    async (view, date, expectedStart, expectedEnd) => {
+      const findMany = jest
+        .spyOn(prisma.booking, "findMany")
+        .mockResolvedValue([] as never);
+      jest.spyOn(prisma.booking, "count").mockResolvedValue(0);
+
+      const response = await request(app)
+        .get(`/api/bookings?view=${view}&date=${date}`)
+        .set("Authorization", "Bearer " + token());
+
+      expect(response.status).toBe(200);
+      expect(response.body.meta).toEqual(
+        expect.objectContaining({
+          view,
+          date,
+          startAt: expectedStart,
+          endAt: expectedEnd,
+        }),
+      );
+      expect(findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            startAt: { lt: new Date(expectedEnd) },
+            endAt: { gt: new Date(expectedStart) },
+          }),
+        }),
+      );
+    },
+  );
+  it("rejects combining a calendar view with a custom date range", async () => {
+    const response = await request(app)
+      .get("/api/bookings?view=daily&startDate=2026-09-20")
+      .set("Authorization", "Bearer " + token());
+    expect(response.status).toBe(400);
+  });
   it("enforces the cancellation cutoff", async () => {
     jest.spyOn(prisma.booking, "findUnique").mockResolvedValue({
       id: 201n,

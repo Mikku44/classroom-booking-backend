@@ -94,6 +94,14 @@ Request ต้องมี classroomId, purpose, attendeeCount, startAt แล�
 
 STAFF/ADMIN สามารถส่ง `userId` เพื่อจองแทนผู้ใช้อื่น และดูรายการทั้งหมดด้วย `GET /api/bookings?scope=all`
 
+รายการจองรองรับมุมมองรายวัน รายสัปดาห์ (จันทร์-อาทิตย์) และรายเดือน โดยใช้วันอ้างอิงตามเวลา Asia/Bangkok:
+
+    GET /api/bookings?view=daily&date=2026-09-20
+    GET /api/bookings?view=weekly&date=2026-09-20
+    GET /api/bookings?view=monthly&date=2026-09-20
+
+หากไม่ส่ง `date` ระบบจะใช้วันปัจจุบัน และไม่สามารถใช้ `view` ร่วมกับ `startDate` หรือ `endDate` ได้
+
 ### 6. หน้ายืนยันการจอง
 
 ใช้ข้อมูลจาก response ของ POST /api/bookings เพื่อแสดง bookingCode, ชื่อห้อง, วัตถุประสงค์, ช่วงเวลา และสถานะ PENDING
@@ -250,6 +258,12 @@ Role และ Status ที่รองรับ:
 รายงานสรุป:
 
     GET /api/admin/reports/summary
+
+Response ของ summary มี `bookingsGraph.data` สำหรับจำนวนการจองตามวันย้อนหลัง 7 วัน (นับจาก `startAt`) และ `statusPie.data` สำหรับจำนวนกับเปอร์เซ็นต์แยกตามสถานะ โดยใช้ timezone Asia/Bangkok
+
+Export CSV สามารถระบุช่วงวันที่ (รวมวันสิ้นสุดตามเวลา Asia/Bangkok) และกรองตามสถานะ ห้อง ผู้ใช้ บทบาท อาคาร ชั้น ประเภทห้อง หรือคำค้นได้:
+
+    GET /api/admin/reports/export?startDate=2026-09-01&endDate=2026-09-30&status=CONFIRMED&building=อาคารเรียนรวม%20A
 
 ข้อมูลที่ใช้แสดง:
 
